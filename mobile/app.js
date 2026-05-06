@@ -25,6 +25,12 @@ function newScript(title = 'Nouveau script') {
   return { id: 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), title, content: '', updatedAt: Date.now() };
 }
 
+const CORRECT_SYNC_SERVER = 'https://novaprompter-production.up.railway.app';
+const OLD_SYNC_SERVERS = [
+  'https://novaprompter-api.up.railway.app',
+  'http://novaprompter-api.up.railway.app',
+  'https://novaprompter.up.railway.app'
+];
 function loadSettings() {
   const def = {
     theme: 'dark',
@@ -38,11 +44,19 @@ function loadSettings() {
     speed: 60, fontSize: 42,
     textOpa: 100,
     camOn: false, camFacing: 'user', camMirror: true,
-    syncServer: 'https://novaprompter-production.up.railway.app',
+    syncServer: CORRECT_SYNC_SERVER,
     syncToken: '', syncEmail: ''
   };
-  try { return Object.assign(def, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
-  catch { return def; }
+  let s;
+  try { s = Object.assign(def, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
+  catch { s = def; }
+  // Migration : remplace les anciennes URLs par la bonne
+  const cleanedUrl = (s.syncServer || '').replace(/\/+$/, '');
+  if (OLD_SYNC_SERVERS.includes(cleanedUrl)) {
+    s.syncServer = CORRECT_SYNC_SERVER;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  }
+  return s;
 }
 function saveSettings(s) { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
 
@@ -140,7 +154,23 @@ $('#clean-script').addEventListener('click', () => {
   const before = elText.value;
   elText.value = cleanScript(before);
   autosave();
-  toast(before === elText.value ? 'Deja propre' : `-${before.length - elText.value.length} chars`);
+  toast(before === elText.value ? 'Déjà propre ✓' : `Nettoyé : -${before.length - elText.value.length} caractères`);
+});
+
+// Bouton "Enregistrer maintenant" — feedback visuel
+const elSaveBtn = document.getElementById('save-script');
+if (elSaveBtn) elSaveBtn.addEventListener('click', () => {
+  saveCurrent();
+  saveSettings(settings);
+  // Feedback vert + toast
+  const orig = elSaveBtn.innerHTML;
+  elSaveBtn.innerHTML = '✓ Enregistré';
+  elSaveBtn.classList.add('confirm');
+  setTimeout(() => {
+    elSaveBtn.innerHTML = orig;
+    elSaveBtn.classList.remove('confirm');
+  }, 1400);
+  toast('Script + réglages enregistrés');
 });
 
 $$('.tag-quick').forEach(b => b.addEventListener('click', () => insertAtCursor(elText, b.dataset.insert)));

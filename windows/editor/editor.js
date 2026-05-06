@@ -922,11 +922,21 @@ if (elCamWinClose) elCamWinClose.addEventListener('click', () => window.nova.cam
 
 // ---------- SYNC RAILWAY (cloud) ----------
 const SYNC_KEY = 'novaprompter:sync';
+const CORRECT_SYNC_SERVER = 'https://novaprompter-production.up.railway.app';
+const OLD_SYNC_SERVERS = [
+  'https://novaprompter-api.up.railway.app',
+  'http://novaprompter-api.up.railway.app',
+  'https://novaprompter.up.railway.app'
+];
 let syncCfg = (() => {
   try { return JSON.parse(localStorage.getItem(SYNC_KEY) || '{}'); }
   catch { return {}; }
 })();
-syncCfg.server = syncCfg.server || 'https://novaprompter-production.up.railway.app';
+// Migration : remplace les anciennes URLs par la bonne
+if (!syncCfg.server || OLD_SYNC_SERVERS.includes((syncCfg.server || '').replace(/\/+$/, ''))) {
+  syncCfg.server = CORRECT_SYNC_SERVER;
+  localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg));
+}
 
 const elSyncServer = document.getElementById('sync-server');
 const elSyncEmail = document.getElementById('sync-email');
