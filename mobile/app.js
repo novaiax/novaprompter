@@ -36,7 +36,9 @@ function loadSettings() {
     keepAwake: true,
     voiceLang: 'fr-FR',
     speed: 60, fontSize: 42,
-    syncServer: 'https://novaprompter-api.up.railway.app',
+    textOpa: 100,
+    camOn: false, camFacing: 'user', camMirror: true,
+    syncServer: 'https://novaprompter-production.up.railway.app',
     syncToken: '', syncEmail: ''
   };
   try { return Object.assign(def, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); }
@@ -210,16 +212,24 @@ function openPrompter() {
   promptState.lookahead = settings.lookahead || 4;
   elSpeedSlider.value = promptState.speed; elSpeedVal.textContent = promptState.speed;
   elSizeSlider.value = promptState.fontSize; elSizeVal.textContent = promptState.fontSize;
+  if (elOpaSlider) { elOpaSlider.value = settings.textOpa || 100; elOpaVal.textContent = settings.textOpa || 100; }
+  document.documentElement.style.setProperty('--text-opa', (settings.textOpa || 100) / 100);
   applySettings();
   rebuildText();
   elPlay.textContent = '▶';
   elModeStatus.textContent = 'Pause';
   showView('prompter');
-  // Position la focus line
   setTimeout(layoutFocus, 50);
+  // Auto-start cam si l'utilisateur l'avait laissée activée
+  if (settings.camOn) startCam(settings.camFacing).catch(() => {});
 }
 
-$('#back-editor').addEventListener('click', () => { stopVoice(); showView('editor'); });
+$('#back-editor').addEventListener('click', () => {
+  stopVoice();
+  if (mediaRecorder) stopRecording();
+  stopCam();
+  showView('editor');
+});
 
 $('#prompter-fullscreen').addEventListener('click', () => {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
@@ -249,6 +259,152 @@ $('#hide-controls').addEventListener('click', () => {
 $('#show-controls').addEventListener('click', () => {
   elControls.classList.remove('hidden');
   elShowCtrl.hidden = true;
+});
+
+// Opacite texte
+const elOpaSlider = $('#opa-slider');
+const elOpaVal = $('#opa-val');
+elOpaSlider.addEventListener('input', () => {
+  settings.textOpa = +elOpaSlider.value;
+  elOpaVal.textContent = settings.textOpa;
+  document.documentElement.style.setProperty('--text-opa', settings.textOpa / 100);
+  saveSettings(settings);
+});
+
+// ================= CAMERA =================
+const elCamVideo = $('#cam-video');
+const elCamToggle = $('#cam-toggle');
+const elCamFlip = $('#cam-flip');
+let camStream = null;
+
+async function startCam(facing = settings.camFacing) {
+  await stopCam();
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    elCamVideo.srcObject = camStream;
+    document.querySelector('.prompter').classList.add('has-cam');
+    document.querySelector('.prompter').classList.toggle('cam-mirror', settings.camMirror);
+    settings.camOn = true; settings.camFacing = facing;
+    saveSettings(settings);
+    elCamToggle.textContent = '📷';
+    elCamToggle.classList.add('active');
+  } catch (e) {
+    toast('Erreur camera : ' + e.message);
+  }
+}
+async function stopCam() {
+  if (camStream) {
+    camStream.getTracks().forEach(t => t.stop());
+    camStream = null;
+  }
+  elCamVideo.srcObject = null;
+  document.querySelector('.prompter').classList.remove('has-cam');
+  settings.camOn = false; saveSettings(settings);
+  elCamToggle.textContent = '📹';
+  elCamToggle.classList.remove('active');
+}
+elCamToggle.addEventListener('click', () => {
+  if (camStream) stopCam();
+  else startCam();
+});
+elCamFlip.addEventListener('click', () => {
+  const newFacing = settings.camFacing === 'user' ? 'environment' : 'user';
+  startCam(newFacing);
+});
+
+// ================= RECORDER (camera + micro) =================
+const elRecBtn = $('#rec-btn');
+const elRecStatus = $('#rec-status');
+let mediaRecorder = null;
+let recChunks = [];
+let recStartTs = 0;
+let recTimer = null;
+
+async function startRecording() {
+  // Stream combine cam + audio
+  try {
+    if (!camStream) await startCam();
+    // On a besoin de l'audio aussi (camStream n'en a pas) — on cree un nouveau stream complet
+    const fullStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: settings.camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: true
+    });
+    // remplace le preview par ce stream complet
+    if (camStream) camStream.getTracks().forEach(t => t.stop());
+    camStream = fullStream;
+    elCamVideo.srcObject = fullStream;
+    document.querySelector('.prompter').classList.add('has-cam');
+
+    const mime = pickMime();
+    mediaRecorder = new MediaRecorder(fullStream, { mimeType: mime });
+    recChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => finalizeRecording(mime);
+    mediaRecorder.start(1000);
+    recStartTs = Date.now();
+    elRecBtn.classList.add('recording');
+    elRecStatus.hidden = false;
+    updateRecTimer();
+    recTimer = setInterval(updateRecTimer, 250);
+    // Auto-play du prompter quand on lance l'enregistrement
+    if (!promptState.playing) togglePlay();
+  } catch (e) {
+    toast('Erreur enregistrement: ' + e.message);
+  }
+}
+
+function stopRecording() {
+  if (!mediaRecorder) return;
+  try { mediaRecorder.stop(); } catch {}
+  mediaRecorder = null;
+  clearInterval(recTimer);
+  recTimer = null;
+  elRecBtn.classList.remove('recording');
+  elRecStatus.hidden = true;
+  if (promptState.playing) togglePlay();
+}
+
+function finalizeRecording(mime) {
+  if (!recChunks.length) return;
+  const blob = new Blob(recChunks, { type: mime });
+  const ext = mime.includes('webm') ? 'webm' : (mime.includes('mp4') ? 'mp4' : 'webm');
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const a = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = `novaprompter-${ts}.${ext}`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('Video sauvegardee : ' + a.download);
+  recChunks = [];
+}
+
+function pickMime() {
+  const candidates = [
+    'video/mp4;codecs=h264,aac',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm'
+  ];
+  for (const c of candidates) {
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return 'video/webm';
+}
+
+function updateRecTimer() {
+  const sec = Math.floor((Date.now() - recStartTs) / 1000);
+  const mm = String(Math.floor(sec / 60)).padStart(2, '0');
+  const ss = String(sec % 60).padStart(2, '0');
+  elRecStatus.textContent = `● REC ${mm}:${ss}`;
+}
+
+elRecBtn.addEventListener('click', () => {
+  if (mediaRecorder) stopRecording();
+  else startRecording();
 });
 // Tap au centre du stage = toggle controls
 elStage.addEventListener('click', (e) => {

@@ -48,8 +48,10 @@
     <button id="open-prompter" class="cta">▶ Lire</button>
   </main>
 
-  <!-- VUE PROMPTER : plein ecran defilement -->
+  <!-- VUE PROMPTER : plein ecran defilement avec cam en background -->
   <main id="view-prompter" class="view prompter">
+    <video id="cam-video" class="cam-video" autoplay playsinline muted></video>
+    <div id="cam-placeholder" class="cam-placeholder"></div>
     <div id="prompter-stage" class="prompter-stage">
       <div id="focus-line" class="focus-line"></div>
       <div id="prompter-text" class="prompter-text"></div>
@@ -65,6 +67,7 @@
       </div>
       <div class="ctrl-mid">
         <span id="mode-status" class="status-mini">Pause</span>
+        <span id="rec-status" class="status-mini" hidden>● REC 00:00</span>
       </div>
       <div class="ctrl-bottom">
         <div class="slider-row">
@@ -75,9 +78,16 @@
           <span class="slider-label">Taille <b id="size-val">42</b></span>
           <input id="size-slider" type="range" min="20" max="100" value="42" />
         </div>
+        <div class="slider-row">
+          <span class="slider-label">Opacite texte <b id="opa-val">100</b>%</span>
+          <input id="opa-slider" type="range" min="20" max="100" value="100" />
+        </div>
         <div class="action-row">
+          <button id="cam-toggle" class="action-btn" aria-label="Camera on/off" title="Activer camera">📹</button>
+          <button id="cam-flip" class="action-btn" aria-label="Flip camera" title="Avant/arriere">🔄</button>
           <button id="reset-btn" class="action-btn" aria-label="Reset">↺</button>
           <button id="play-btn" class="play-btn" aria-label="Play/Pause">▶</button>
+          <button id="rec-btn" class="action-btn rec-btn" aria-label="Record" title="Enregistrer">⏺</button>
           <button id="hide-controls" class="action-btn" aria-label="Cacher controles">⌃</button>
         </div>
       </div>
