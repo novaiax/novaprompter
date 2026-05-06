@@ -87,9 +87,13 @@ app.get('/', async (_req, res) => {
   try { const r = await pool.query('SELECT COUNT(*) FROM users'); users = parseInt(r.rows[0].count, 10); } catch {}
   res.json({ name: 'NovaPrompter API', status: 'ok', users, time: new Date().toISOString() });
 });
+// Healthcheck Railway : toujours 200 si le serveur Node est UP.
+// Le statut DB est dans la réponse mais ne fait pas échouer le healthcheck
+// (sinon Railway tue le deploy avant que tu puisses ajouter Postgres).
 app.get('/health', async (_req, res) => {
-  try { await pool.query('SELECT 1'); res.json({ ok: true }); }
-  catch (e) { res.status(503).json({ ok: false, error: e.message }); }
+  let db = false;
+  try { await pool.query('SELECT 1'); db = true; } catch {}
+  res.json({ ok: true, db, hasDbUrl: !!DATABASE_URL });
 });
 
 // ----- Auth -----
