@@ -214,6 +214,13 @@ function openPrompter() {
   elSizeSlider.value = promptState.fontSize; elSizeVal.textContent = promptState.fontSize;
   if (elOpaSlider) { elOpaSlider.value = settings.textOpa || 100; elOpaVal.textContent = settings.textOpa || 100; }
   document.documentElement.style.setProperty('--text-opa', (settings.textOpa || 100) / 100);
+  // Sync sliders avancés avec les settings courants
+  if (elFocusPromSlider) { elFocusPromSlider.value = settings.focus; elFocusPromVal.textContent = settings.focus; }
+  if (elLookPromSlider) { elLookPromSlider.value = settings.lookahead; elLookPromVal.textContent = settings.lookahead; }
+  if (elWidthPromSlider) { elWidthPromSlider.value = settings.width; elWidthPromVal.textContent = settings.width; }
+  if (elMirrorHBtn) elMirrorHBtn.classList.toggle('active', settings.mirrorH);
+  if (elMirrorVBtn) elMirrorVBtn.classList.toggle('active', settings.mirrorV);
+  if (elCamMirrorBtn) elCamMirrorBtn.classList.toggle('active', settings.camMirror);
   applySettings();
   rebuildText();
   elPlay.textContent = '▶';
@@ -269,6 +276,82 @@ elOpaSlider.addEventListener('input', () => {
   elOpaVal.textContent = settings.textOpa;
   document.documentElement.style.setProperty('--text-opa', settings.textOpa / 100);
   saveSettings(settings);
+});
+
+// Onglets dans la vue prompter (Lecture / Avancé / Cam)
+$$('.ctrl-tab').forEach(tab => tab.addEventListener('click', () => {
+  $$('.ctrl-tab').forEach(t => t.classList.toggle('active', t === tab));
+  $$('.ctrl-pane').forEach(p => p.hidden = p.dataset.pane !== tab.dataset.pane);
+}));
+
+// Sliders avancés (synchronisés avec les Settings)
+const elFocusPromSlider = $('#focus-prom-slider');
+const elFocusPromVal = $('#focus-prom-val');
+const elLookPromSlider = $('#look-prom-slider');
+const elLookPromVal = $('#look-prom-val');
+const elWidthPromSlider = $('#width-prom-slider');
+const elWidthPromVal = $('#width-prom-val');
+const elMirrorHBtn = $('#mirror-h-btn');
+const elMirrorVBtn = $('#mirror-v-btn');
+
+if (elFocusPromSlider) elFocusPromSlider.addEventListener('input', () => {
+  settings.focus = +elFocusPromSlider.value;
+  elFocusPromVal.textContent = settings.focus;
+  promptState.focus = settings.focus;
+  saveSettings(settings);
+  layoutFocus();
+  applyScroll();
+});
+if (elLookPromSlider) elLookPromSlider.addEventListener('input', () => {
+  settings.lookahead = +elLookPromSlider.value;
+  elLookPromVal.textContent = settings.lookahead;
+  promptState.lookahead = settings.lookahead;
+  saveSettings(settings);
+  applyScroll();
+});
+if (elWidthPromSlider) elWidthPromSlider.addEventListener('input', () => {
+  settings.width = +elWidthPromSlider.value;
+  elWidthPromVal.textContent = settings.width;
+  applySettings();
+  saveSettings(settings);
+});
+if (elMirrorHBtn) elMirrorHBtn.addEventListener('click', () => {
+  settings.mirrorH = !settings.mirrorH;
+  elMirrorHBtn.classList.toggle('active', settings.mirrorH);
+  applySettings(); saveSettings(settings);
+});
+if (elMirrorVBtn) elMirrorVBtn.addEventListener('click', () => {
+  settings.mirrorV = !settings.mirrorV;
+  elMirrorVBtn.classList.toggle('active', settings.mirrorV);
+  applySettings(); saveSettings(settings);
+});
+
+// Cam mirror toggle (vue prompter)
+const elCamMirrorBtn = $('#cam-mirror-btn');
+if (elCamMirrorBtn) elCamMirrorBtn.addEventListener('click', () => {
+  settings.camMirror = !settings.camMirror;
+  elCamMirrorBtn.classList.toggle('active', settings.camMirror);
+  document.querySelector('.prompter').classList.toggle('cam-mirror', settings.camMirror);
+  saveSettings(settings);
+});
+
+// Cam zoom (si supporté par le device)
+const elZoomSlider = $('#zoom-slider');
+const elZoomVal = $('#zoom-val');
+if (elZoomSlider) elZoomSlider.addEventListener('input', async () => {
+  const z = parseFloat(elZoomSlider.value);
+  elZoomVal.textContent = z.toFixed(1);
+  if (camStream) {
+    const track = camStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.zoom) {
+      try { await track.applyConstraints({ advanced: [{ zoom: Math.min(caps.zoom.max || 5, z) }] }); }
+      catch {}
+    } else {
+      // Fallback CSS scale
+      elCamVideo.style.transform = (settings.camMirror ? 'scaleX(-1) ' : '') + `scale(${z})`;
+    }
+  }
 });
 
 // ================= CAMERA =================

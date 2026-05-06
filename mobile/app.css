@@ -260,6 +260,34 @@ input, textarea, select, button { font-family: inherit; font-size: inherit; colo
   background: var(--accent); border-radius: 50%; border: none; cursor: pointer;
 }
 
+.ctrl-tabs {
+  display: flex; gap: 4px; margin-bottom: 10px;
+  background: rgba(0,0,0,.4); border-radius: 8px; padding: 3px;
+}
+.ctrl-tab {
+  flex: 1; background: transparent; color: var(--muted);
+  border: none; padding: 7px 8px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.ctrl-tab.active { background: var(--accent); color: #fff; }
+.ctrl-pane[hidden] { display: none; }
+.ctrl-pane { display: flex; flex-direction: column; gap: 8px; }
+.toggle-row {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.toggle-btn {
+  flex: 1; background: rgba(0,0,0,.5); color: var(--muted);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 18px;
+  padding: 8px 12px; font-size: 13px; cursor: pointer;
+  white-space: nowrap; min-height: 38px;
+  transition: all .15s;
+}
+.toggle-btn.active {
+  background: var(--accent); color: #fff;
+  border-color: var(--accent);
+}
+
 .action-row {
   display: flex; justify-content: center; align-items: center;
   gap: 24px; margin-top: 8px;

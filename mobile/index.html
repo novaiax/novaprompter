@@ -70,24 +70,62 @@
         <span id="rec-status" class="status-mini" hidden>● REC 00:00</span>
       </div>
       <div class="ctrl-bottom">
-        <div class="slider-row">
-          <span class="slider-label">Vitesse <b id="speed-val">60</b></span>
-          <input id="speed-slider" type="range" min="10" max="400" value="60" />
+        <div class="ctrl-tabs">
+          <button class="ctrl-tab active" data-pane="basic">Lecture</button>
+          <button class="ctrl-tab" data-pane="advanced">Avance</button>
+          <button class="ctrl-tab" data-pane="cam">Cam</button>
         </div>
-        <div class="slider-row">
-          <span class="slider-label">Taille <b id="size-val">42</b></span>
-          <input id="size-slider" type="range" min="20" max="100" value="42" />
+
+        <div class="ctrl-pane active" data-pane="basic">
+          <div class="slider-row">
+            <span class="slider-label">Vitesse <b id="speed-val">60</b></span>
+            <input id="speed-slider" type="range" min="10" max="400" value="60" />
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Taille <b id="size-val">42</b></span>
+            <input id="size-slider" type="range" min="20" max="100" value="42" />
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Opacite texte <b id="opa-val">100</b>%</span>
+            <input id="opa-slider" type="range" min="20" max="100" value="100" />
+          </div>
         </div>
-        <div class="slider-row">
-          <span class="slider-label">Opacite texte <b id="opa-val">100</b>%</span>
-          <input id="opa-slider" type="range" min="20" max="100" value="100" />
+
+        <div class="ctrl-pane" data-pane="advanced" hidden>
+          <div class="slider-row">
+            <span class="slider-label">Position focus <b id="focus-prom-val">50</b>%</span>
+            <input id="focus-prom-slider" type="range" min="10" max="85" value="50" />
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Avance voice <b id="look-prom-val">4</b></span>
+            <input id="look-prom-slider" type="range" min="0" max="12" value="4" />
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Largeur ligne <b id="width-prom-val">90</b>%</span>
+            <input id="width-prom-slider" type="range" min="40" max="100" value="90" />
+          </div>
+          <div class="toggle-row">
+            <button id="mirror-h-btn" class="toggle-btn">Mirror H</button>
+            <button id="mirror-v-btn" class="toggle-btn">Mirror V</button>
+          </div>
         </div>
+
+        <div class="ctrl-pane" data-pane="cam" hidden>
+          <div class="toggle-row">
+            <button id="cam-toggle" class="toggle-btn">📹 Activer cam</button>
+            <button id="cam-flip" class="toggle-btn">🔄 Flip</button>
+            <button id="cam-mirror-btn" class="toggle-btn active">Mirror cam</button>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Zoom cam <b id="zoom-val">1</b>×</span>
+            <input id="zoom-slider" type="range" min="1" max="5" step="0.1" value="1" />
+          </div>
+        </div>
+
         <div class="action-row">
-          <button id="cam-toggle" class="action-btn" aria-label="Camera on/off" title="Activer camera">📹</button>
-          <button id="cam-flip" class="action-btn" aria-label="Flip camera" title="Avant/arriere">🔄</button>
-          <button id="reset-btn" class="action-btn" aria-label="Reset">↺</button>
+          <button id="reset-btn" class="action-btn" aria-label="Reset" title="Retour debut">↺</button>
           <button id="play-btn" class="play-btn" aria-label="Play/Pause">▶</button>
-          <button id="rec-btn" class="action-btn rec-btn" aria-label="Record" title="Enregistrer">⏺</button>
+          <button id="rec-btn" class="action-btn rec-btn" aria-label="Record" title="Enregistrer cam+audio">⏺</button>
           <button id="hide-controls" class="action-btn" aria-label="Cacher controles">⌃</button>
         </div>
       </div>
