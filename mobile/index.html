@@ -14,20 +14,45 @@
   <link rel="stylesheet" href="app.css" />
   <script>
     (function () {
+      // Migration sync server URL
       try {
         var k = 'nova:mobile:settings';
         var raw = localStorage.getItem(k);
-        if (!raw) return;
-        var s = JSON.parse(raw);
-        var clean = (s.syncServer || '').replace(/\/+$/, '');
-        var bad = [
-          'https://novaprompter-api.up.railway.app',
-          'http://novaprompter-api.up.railway.app',
-          'https://novaprompter.up.railway.app'
-        ];
-        if (bad.indexOf(clean) !== -1) {
-          s.syncServer = 'https://novaprompter-production.up.railway.app';
-          localStorage.setItem(k, JSON.stringify(s));
+        if (raw) {
+          var s = JSON.parse(raw);
+          var clean = (s.syncServer || '').replace(/\/+$/, '');
+          var bad = [
+            'https://novaprompter-api.up.railway.app',
+            'http://novaprompter-api.up.railway.app',
+            'https://novaprompter.up.railway.app'
+          ];
+          if (bad.indexOf(clean) !== -1) {
+            s.syncServer = 'https://novaprompter-production.up.railway.app';
+            localStorage.setItem(k, JSON.stringify(s));
+          }
+        }
+      } catch (e) {}
+      // ONE-TIME cache bust pour le redesign mobile (v6)
+      try {
+        var BUST = 'tpr:cachebust:v6';
+        if (!localStorage.getItem(BUST)) {
+          localStorage.setItem(BUST, '1');
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              var todo = regs.length;
+              if (!todo) return clearAndReload();
+              regs.forEach(function (r) { r.unregister().finally(function () { if (--todo === 0) clearAndReload(); }); });
+            });
+          } else { clearAndReload(); }
+          function clearAndReload() {
+            if (window.caches) {
+              caches.keys().then(function (keys) {
+                Promise.all(keys.map(function (k) { return caches.delete(k); })).then(function () {
+                  location.reload();
+                });
+              });
+            } else { location.reload(); }
+          }
         }
       } catch (e) {}
     })();
