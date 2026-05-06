@@ -76,7 +76,17 @@ let scriptsFilter = '';
 // ================= NAVIGATION =================
 const views = ['home', 'editor', 'prompter'];
 function showView(name) {
-  views.forEach(v => $('#view-' + v).classList.toggle('active', v === name));
+  // Hide all tab-views first when going to editor/prompter
+  if (name === 'editor' || name === 'prompter') {
+    document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+    $('#view-editor').classList.toggle('active', name === 'editor');
+    $('#view-prompter').classList.toggle('active', name === 'prompter');
+  } else {
+    // 'home' = back to scripts tab
+    $('#view-editor').classList.remove('active');
+    $('#view-prompter').classList.remove('active');
+    if (typeof window.showTab === 'function') window.showTab('scripts');
+  }
   if (name === 'prompter') startWakeLock();
   else releaseWakeLock();
   if (name !== 'prompter') stopVoice();
@@ -92,15 +102,23 @@ function renderList() {
     ? scripts.filter(s => (s.title + ' ' + s.content).toLowerCase().includes(scriptsFilter.toLowerCase()))
     : scripts;
   if (!filtered.length) {
-    elList.innerHTML = `<li class="s-empty">${scriptsFilter ? 'Aucun resultat' : 'Aucun script. Tape + pour commencer.'}</li>`;
+    const empty = document.createElement('div');
+    empty.className = 'script-card empty';
+    empty.textContent = scriptsFilter ? 'Aucun resultat' : 'Tape + pour commencer';
+    elList.appendChild(empty);
     return;
   }
   filtered.sort((a, b) => b.updatedAt - a.updatedAt);
   for (const s of filtered) {
-    const li = document.createElement('li');
-    li.innerHTML = `<span class="s-title">${escapeHtml(s.title || 'Sans titre')}</span><span class="s-meta">${formatDate(s.updatedAt)}</span>`;
-    li.addEventListener('click', () => openEditor(s.id));
-    elList.appendChild(li);
+    const card = document.createElement('div');
+    card.className = 'script-card';
+    const preview = (s.content || '').replace(/\[[^\]]+\]/g, '').trim().slice(0, 220);
+    card.innerHTML = `
+      <div class="script-card-preview">${escapeHtml(preview) || '<span style="opacity:.4">vide</span>'}</div>
+      <div class="script-card-title">${escapeHtml(s.title || 'Sans titre')}</div>
+    `;
+    card.addEventListener('click', () => openEditor(s.id));
+    elList.appendChild(card);
   }
 }
 elSearch.addEventListener('input', () => { scriptsFilter = elSearch.value; renderList(); });
@@ -111,7 +129,8 @@ $('#new-script').addEventListener('click', () => {
   openEditor(s.id);
 });
 
-$('#open-settings').addEventListener('click', openSettings);
+const _openSettingsBtn = $('#open-settings');
+if (_openSettingsBtn) _openSettingsBtn.addEventListener('click', openSettings);
 
 // ================= EDITOR =================
 const elTitle = $('#title-input');
@@ -213,15 +232,15 @@ $('#open-prompter').addEventListener('click', () => { saveCurrent(); openPrompte
 const elStage = $('#prompter-stage');
 const elPText = $('#prompter-text');
 const elFocus = $('#focus-line');
-const elPlay = $('#play-btn');
-const elReset = $('#reset-btn');
-const elModeStatus = $('#mode-status');
+const elPlay = $('#play-btn');         // null avec nouveau layout (REC remplace)
+const elReset = $('#reset-btn');       // null
+const elModeStatus = $('#mode-status'); // null
 const elSpeedSlider = $('#speed-slider');
 const elSpeedVal = $('#speed-val');
-const elSizeSlider = $('#size-slider');
-const elSizeVal = $('#size-val');
+const elSizeSlider = $('#size-slider'); // null
+const elSizeVal = $('#size-val');       // null
 const elControls = $('#prompter-controls');
-const elShowCtrl = $('#show-controls');
+const elShowCtrl = $('#show-controls'); // null
 
 let promptState = {
   text: '', mode: 'auto', playing: false,
@@ -242,8 +261,8 @@ function openPrompter() {
   promptState.fontSize = settings.fontSize || 42;
   promptState.focus = settings.focus || 50;
   promptState.lookahead = settings.lookahead || 4;
-  elSpeedSlider.value = promptState.speed; elSpeedVal.textContent = promptState.speed;
-  elSizeSlider.value = promptState.fontSize; elSizeVal.textContent = promptState.fontSize;
+  if (elSpeedSlider) { elSpeedSlider.value = promptState.speed; if (elSpeedVal) elSpeedVal.textContent = promptState.speed; }
+  if (elSizeSlider) { elSizeSlider.value = promptState.fontSize; if (elSizeVal) elSizeVal.textContent = promptState.fontSize; }
   if (elOpaSlider) { elOpaSlider.value = settings.textOpa || 100; elOpaVal.textContent = settings.textOpa || 100; }
   document.documentElement.style.setProperty('--text-opa', (settings.textOpa || 100) / 100);
   // Sync sliders avancés avec les settings courants
@@ -270,20 +289,19 @@ $('#back-editor').addEventListener('click', () => {
   showView('editor');
 });
 
-$('#prompter-fullscreen').addEventListener('click', () => {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-  else document.exitFullscreen?.();
+if (elPlay) elPlay.addEventListener('click', togglePlay);
+if (elReset) elReset.addEventListener('click', () => {
+  promptState.scrollPx = 0; promptState.progressRatio = 0;
+  voiceIdx = 0; phraseAnchor = 0; applyScroll();
 });
-
-elPlay.addEventListener('click', togglePlay);
-elReset.addEventListener('click', () => { promptState.scrollPx = 0; promptState.progressRatio = 0; voiceIdx = 0; phraseAnchor = 0; applyScroll(); });
 
 function togglePlay() {
   promptState.playing = !promptState.playing;
-  elPlay.textContent = promptState.playing ? '❚❚' : '▶';
-  elModeStatus.textContent = promptState.playing ? (promptState.mode === 'auto' ? 'Lecture auto' : 'Voice') : 'Pause';
+  if (elPlay) elPlay.textContent = promptState.playing ? '❚❚' : '▶';
+  if (elModeStatus) elModeStatus.textContent = promptState.playing ? (promptState.mode === 'auto' ? 'Lecture auto' : 'Voice') : 'Pause';
 }
 
+// Mode segment : voice (AUTO SCROLL) ou auto (FIXED SPEED)
 $$('.mode-btn[data-mode]').forEach(b => b.addEventListener('click', () => {
   $$('.mode-btn[data-mode]').forEach(x => x.classList.toggle('active', x === b));
   promptState.mode = b.dataset.mode;
@@ -300,6 +318,24 @@ if (elEditBtn) elEditBtn.addEventListener('click', () => {
   showView('editor');
 });
 if (elSettingsBtn) elSettingsBtn.addEventListener('click', () => openSettings());
+
+// REC button = démarre/arrête enregistrement ET le scroll auto
+const elRecBtn = $('#rec-btn');
+if (elRecBtn) elRecBtn.addEventListener('click', () => {
+  if (mediaRecorder) stopRecording();
+  else startRecording();
+});
+
+// Tap sur le texte (court) = play/pause du scroll. Long press = swipe (déjà géré).
+let textTapStart = 0;
+elStage.addEventListener('touchstart', (e) => { textTapStart = Date.now(); }, { passive: true });
+elStage.addEventListener('touchend', (e) => {
+  const dt = Date.now() - textTapStart;
+  if (dt < 200 && !swipeStart) {
+    // Tap court : toggle play/pause
+    togglePlay();
+  }
+}, { passive: true });
 
 // Mic toggle
 const elMicToggle = document.getElementById('mic-toggle');
@@ -435,7 +471,6 @@ if (elZoomSlider) elZoomSlider.addEventListener('input', async () => {
 // ================= CAMERA =================
 const elCamVideo = $('#cam-video');
 const elCamToggle = $('#cam-toggle');
-const elCamFlip = $('#cam-flip');
 let camStream = null;
 
 async function startCam(facing = settings.camFacing) {
@@ -542,17 +577,13 @@ function onSegResults(results) {
   segCtx.drawImage(segTempCanvas, 0, 0);
   segCtx.restore();
 }
-elCamToggle.addEventListener('click', () => {
-  if (camStream) stopCam();
-  else startCam();
-});
-elCamFlip.addEventListener('click', () => {
+const elCamFlip = $('#cam-flip');
+if (elCamFlip) elCamFlip.addEventListener('click', () => {
   const newFacing = settings.camFacing === 'user' ? 'environment' : 'user';
   startCam(newFacing);
 });
 
 // ================= RECORDER (camera + micro) =================
-const elRecBtn = $('#rec-btn');
 const elRecStatus = $('#rec-status');
 let mediaRecorder = null;
 let recChunks = [];
@@ -678,17 +709,8 @@ function updateRecTimer() {
   elRecStatus.textContent = `● REC ${mm}:${ss}`;
 }
 
-elRecBtn.addEventListener('click', () => {
-  if (mediaRecorder) stopRecording();
-  else startRecording();
-});
-// Tap au centre du stage = toggle controls
-elStage.addEventListener('click', (e) => {
-  // Ne pas reagir si on clique sur un controle
-  if (e.target.closest('.prompter-controls') || e.target.closest('.show-ctrl-fab')) return;
-  elControls.classList.toggle('hidden');
-  elShowCtrl.hidden = !elControls.classList.contains('hidden');
-});
+// (REC click handler bind plus haut, ligne ~323, avec guard sur elRecBtn)
+// (anciennement : tap stage = toggle controls — retiré avec nouveau layout)
 // Double-tap pour play/pause
 let lastTap = 0;
 elStage.addEventListener('touchend', (e) => {
@@ -697,16 +719,15 @@ elStage.addEventListener('touchend', (e) => {
   lastTap = now;
 });
 
-elSpeedSlider.addEventListener('input', () => {
+if (elSpeedSlider) elSpeedSlider.addEventListener('input', () => {
   promptState.speed = +elSpeedSlider.value;
-  elSpeedVal.textContent = promptState.speed;
+  if (elSpeedVal) elSpeedVal.textContent = promptState.speed;
   settings.speed = promptState.speed; saveSettings(settings);
 });
-elSizeSlider.addEventListener('input', () => {
+if (elSizeSlider) elSizeSlider.addEventListener('input', () => {
   promptState.fontSize = +elSizeSlider.value;
-  elSizeVal.textContent = promptState.fontSize;
+  if (elSizeVal) elSizeVal.textContent = promptState.fontSize;
   applySettings();
-  layoutFocus();
   settings.fontSize = promptState.fontSize; saveSettings(settings);
 });
 
