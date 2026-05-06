@@ -9,11 +9,19 @@ const { Pool } = require('pg');
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'novaprompter-dev-secret-CHANGE-IN-PROD';
-const DATABASE_URL = process.env.DATABASE_URL;
+// On accepte plusieurs noms de var standard Railway/Heroku/Render
+const DATABASE_URL = process.env.DATABASE_URL
+  || process.env.DATABASE_PUBLIC_URL
+  || process.env.POSTGRES_URL
+  || process.env.PG_URL;
 
 if (!DATABASE_URL) {
-  console.warn('[!] DATABASE_URL absente — le serveur va planter au premier appel DB.');
-  console.warn('    Sur Railway : ajoute un service Postgres au meme projet.');
+  console.warn('[!] Aucune URL Postgres trouvee (DATABASE_URL / DATABASE_PUBLIC_URL / POSTGRES_URL / PG_URL).');
+  console.warn('    Sur Railway : ajoute un service Postgres au meme projet et reference DATABASE_URL.');
+} else {
+  // Masque le password dans les logs
+  const masked = DATABASE_URL.replace(/(:\/\/[^:]+:)[^@]+(@)/, '$1***$2');
+  console.log('[*] DB URL :', masked);
 }
 
 // SSL en prod (Railway), pas en local
