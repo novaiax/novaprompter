@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>NovaPrompter — Cam Blur (OBS Browser Source)</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+    #stage { position: absolute; inset: 0; }
+    video, canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
+    video { display: none; }
+    #panel {
+      position: fixed; top: 8px; left: 8px; right: 8px; z-index: 10;
+      background: rgba(0,0,0,.78); border: 1px solid rgba(255,255,255,.2);
+      border-radius: 8px; padding: 10px 12px;
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      transition: opacity .25s; opacity: 0; pointer-events: none;
+      font-size: 12px;
+    }
+    #panel.show { opacity: 1; pointer-events: auto; }
+    body:hover #panel { opacity: 1; pointer-events: auto; }
+    #panel select, #panel input { background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+    #panel label { display: flex; align-items: center; gap: 6px; }
+    #panel button { background: #ff5b3a; color: #fff; border: 0; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+    #status { color: rgba(255,255,255,.6); font-size: 11px; margin-left: auto; }
+    .hidden-panel #panel { opacity: 0 !important; pointer-events: none !important; }
+    body:hover.hidden-panel #panel { opacity: 0 !important; }
+
+    /* Overlay UI (cam fenetre dediee) */
+    #overlayUI { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 5; }
+    body.overlay #overlayUI { display: block; }
+    body.overlay #panel { top: auto; bottom: 8px; }
+    .focus-line-h, .focus-line-v {
+      position: absolute; background: rgba(120,220,255,.65);
+      box-shadow: 0 0 14px rgba(120,220,255,.5);
+    }
+    .focus-line-h { left: 4%; right: 4%; top: 50%; height: 2px; transform: translateY(-1px); }
+    .focus-line-v { top: 4%; bottom: 4%; left: 50%; width: 2px; transform: translateX(-1px); }
+
+    /* Drag bar pour deplacer la fenetre frameless */
+    #dragbar {
+      position: absolute; top: 0; left: 0; right: 0; height: 28px;
+      -webkit-app-region: drag; z-index: 4;
+      background: linear-gradient(180deg, rgba(0,0,0,.4), transparent);
+      display: none;
+    }
+    body.overlay #dragbar { display: block; }
+    #panel button, #panel input, #panel select { -webkit-app-region: no-drag; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <video id="src" autoplay playsinline muted></video>
+    <canvas id="out"></canvas>
+    <div id="overlayUI">
+      <div class="focus-line-h"></div>
+      <div class="focus-line-v"></div>
+    </div>
+    <div id="dragbar" title="Glisse pour deplacer"></div>
+  </div>
+  <div id="panel">
+    <label>Camera <select id="cam"></select></label>
+    <label>Fond
+      <select id="bg-mode">
+        <option value="blur" selected>Flou</option>
+        <option value="color">Couleur</option>
+        <option value="image">Image</option>
+        <option value="none">Aucun (cam direct)</option>
+      </select>
+    </label>
+    <label id="lab-intensity">Intensite <input type="range" id="blur-amt" min="2" max="30" value="12" /></label>
+    <label id="lab-color" style="display:none">Couleur <input type="color" id="bg-color" value="#ffffff" /></label>
+    <span id="lab-image" style="display:none">
+      <button id="bg-load-image">Charger image</button>
+      <button id="bg-clear-image" title="Retirer l'image">×</button>
+      <input type="file" id="bg-file" accept="image/*" hidden />
+    </span>
+    <label>Mirror <input type="checkbox" id="mirror" /></label>
+    <button id="hide">Cacher (H)</button>
+    <span id="status">Init…</span>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <script src="cam-blur.js"></script>
+</body>
+</html>

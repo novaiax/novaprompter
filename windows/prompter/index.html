@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>NovaPrompter — Display</title>
+  <link rel="stylesheet" href="prompter.css" />
+</head>
+<body>
+  <div id="frame">
+    <header class="dragbar" id="dragbar">
+      <span class="title">NovaPrompter — drag ici pour deplacer</span>
+      <div class="controls">
+        <button id="btn-min" title="Reduire">_</button>
+        <button id="btn-fullscreen" title="Plein ecran">&#9974;</button>
+        <button id="btn-close" title="Fermer">&times;</button>
+      </div>
+    </header>
+
+    <!-- Bandes draggables sur les cotes pour faciliter le deplacement -->
+    <div class="drag-edge drag-left"></div>
+    <div class="drag-edge drag-right"></div>
+    <div class="drag-edge drag-bottom"></div>
+
+    <div id="stage" class="stage">
+      <div id="focusLine" class="focus-line"></div>
+      <div id="centerLine" class="center-line"></div>
+      <div id="camWrap" class="cam-wrap" hidden>
+        <video id="camView" autoplay playsinline muted></video>
+        <canvas id="camCanvas"></canvas>
+        <div class="cam-cross"></div>
+      </div>
+      <div id="text" class="text"></div>
+      <div id="empty" class="empty">Aucun texte. Tape dans la fenetre Editor.</div>
+    </div>
+
+    <footer class="hud" id="hud">
+      <span id="hud-mode">AUTO</span>
+      <span id="hud-state">PAUSE</span>
+      <span id="hud-speed">60 px/s</span>
+      <span id="hud-progress">0%</span>
+    </footer>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
+  <script type="module" src="prompter.js"></script>
+</body>
+</html>

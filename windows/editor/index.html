@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>NovaPrompter — Editor</title>
+  <link rel="stylesheet" href="editor.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>Scripts</h2>
+        <button id="btn-new" title="Nouveau script">+</button>
+      </div>
+      <ul id="script-list" class="script-list"></ul>
+      <div class="sidebar-foot">
+        <button id="btn-rename">Renommer</button>
+        <button id="btn-delete" class="danger">Supprimer</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <input id="title" class="title-input" placeholder="Titre du script" />
+        <div class="topbar-actions">
+          <button id="btn-clean" title="Enlever titres, timecodes, markdown">Nettoyer</button>
+          <button id="btn-save" title="Sauvegarder maintenant (script + reglages)">Enregistrer</button>
+          <button id="btn-fullscreen-prompter">Plein ecran</button>
+          <button id="btn-settings" title="Reglages avances" class="settings-btn">⚙ Reglages</button>
+        </div>
+      </header>
+
+      <textarea id="editor" class="editor" placeholder="Colle ou ecris ton script ici. La modification est syncronisee en temps reel avec le prompter."></textarea>
+
+      <!-- ESSENTIELS : visibles en permanence sous le scripteur -->
+      <section class="essentials">
+        <div class="ess-row">
+          <div class="seg" title="Mode de defilement">
+            <button class="seg-btn active" data-mode="auto">Auto</button>
+            <button class="seg-btn" data-mode="voice">Voice</button>
+          </div>
+          <button id="btn-play" class="big primary">&#9654; Play</button>
+          <button id="btn-reset" title="Retour au debut (R)">&#8634;</button>
+          <div class="ess-slider">
+            <label>Vitesse <span id="speed-val">60</span> px/s</label>
+            <input id="speed" type="range" min="10" max="300" value="60" />
+          </div>
+          <div class="ess-slider">
+            <label>Taille <span id="font-val">42</span> px</label>
+            <input id="font" type="range" min="18" max="120" value="42" />
+          </div>
+          <div class="ess-slider">
+            <label>Avance voice <span id="lookahead-val">4</span></label>
+            <input id="lookahead" type="range" min="0" max="12" value="4" />
+          </div>
+        </div>
+
+        <div class="ess-row">
+          <button id="btn-prompter" class="primary">Ouvrir Prompter</button>
+          <button id="btn-cam-window" class="primary">Ouvrir Camera</button>
+          <button id="btn-cam-window-close" title="Fermer fenetre camera">×</button>
+          <button id="btn-rec" class="primary">&#9679; Rec</button>
+          <button id="btn-obs-go" class="primary big" title="GO : scene + record OBS + play">GO</button>
+          <div id="vosk-state-mini" class="status status-mini" title="Etat du serveur Vosk">Vosk…</div>
+          <div id="voice-status-mini" class="status status-mini">Voice : inactif</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL REGLAGES -->
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-content">
+      <header class="modal-head">
+        <h2>Reglages</h2>
+        <button id="modal-close" class="modal-close">×</button>
+      </header>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="appearance">Apparence</button>
+        <button class="tab-btn" data-tab="prompter">Prompter</button>
+        <button class="tab-btn" data-tab="sources">Cam / Micro</button>
+        <button class="tab-btn" data-tab="balises">Balises</button>
+        <button class="tab-btn" data-tab="voice">Voice / Vosk</button>
+        <button class="tab-btn" data-tab="record">Enregistrement</button>
+        <button class="tab-btn" data-tab="obs">OBS</button>
+      </nav>
+
+      <div class="tab-pane" data-tab="appearance">
+        <div class="ctrl-row">
+          <div class="ctrl-group">
+            <label>Theme</label>
+            <select id="theme">
+              <option value="dark" selected>Blanc sur noir</option>
+              <option value="light">Noir sur blanc</option>
+              <option value="sepia">Sepia</option>
+              <option value="yellow">Jaune sur noir (contraste)</option>
+              <option value="green">Vert sur noir (mat)</option>
+              <option value="custom">Personnalise</option>
+            </select>
+          </div>
+          <div class="ctrl-group" id="custom-colors-group" style="display:none">
+            <label>Couleurs</label>
+            <div class="row">
+              <input id="color-fg" type="color" value="#ffffff" title="Texte" />
+              <input id="color-bg" type="color" value="#000000" title="Fond" />
+            </div>
+          </div>
+          <div class="ctrl-group grow">
+            <label>Police</label>
+            <select id="font-family">
+              <optgroup label="★ Recommandees teleprompteur (anti-begaiement)">
+                <option value="'Lexend', sans-serif" selected>Lexend ★ (fluidite lecture)</option>
+                <option value="'Atkinson Hyperlegible', sans-serif">Atkinson Hyperlegible ★</option>
+                <option value="'Nunito', sans-serif">Nunito ★</option>
+                <option value="'Source Sans 3', 'Source Sans Pro', sans-serif">Source Sans 3 ★</option>
+                <option value="Verdana, Geneva, sans-serif">Verdana ★</option>
+                <option value="Tahoma, Geneva, sans-serif">Tahoma ★</option>
+              </optgroup>
+              <optgroup label="Sans-serif courantes">
+                <option value="'Segoe UI', system-ui, sans-serif">Segoe UI</option>
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="'Roboto', sans-serif">Roboto</option>
+                <option value="'Lato', sans-serif">Lato</option>
+                <option value="'Montserrat', sans-serif">Montserrat</option>
+                <option value="'Poppins', sans-serif">Poppins</option>
+                <option value="'Open Sans', sans-serif">Open Sans</option>
+              </optgroup>
+              <optgroup label="Serif / Mono">
+                <option value="Georgia, serif">Georgia (serif)</option>
+                <option value="'Times New Roman', serif">Times (serif)</option>
+                <option value="'Cascadia Code', 'Consolas', monospace">Cascadia Code (mono)</option>
+                <option value="'Courier New', monospace">Courier (mono)</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+
+        <div class="ctrl-row">
+          <div class="ctrl-group grow">
+            <label>Poids police <span id="weight-val">500</span></label>
+            <input id="font-weight" type="range" min="300" max="900" step="100" value="500" />
+          </div>
+          <div class="ctrl-group grow">
+            <label>Interligne <span id="lh-val">1.60</span></label>
+            <input id="line-height" type="range" min="100" max="220" value="160" />
+          </div>
+          <div class="ctrl-group grow">
+            <label>Espacement <span id="ls-val">0</span> px</label>
+            <input id="letter-spacing" type="range" min="-2" max="8" value="0" />
+          </div>
+          <label class="check"><input type="checkbox" id="text-align-left" /> Aligner gauche</label>
+        </div>
+      </div>
+
+      <div class="tab-pane" data-tab="prompter" hidden>
+        <div class="ctrl-row">
+          <div class="ctrl-group grow">
+            <label>Largeur ligne <span id="width-val">90</span> %</label>
+            <input id="line-width" type="range" min="40" max="100" value="90" />
+          </div>
+          <div class="ctrl-group grow">
+            <label>Position focus <span id="focus-val">35</span> %</label>
+            <input id="focus" type="range" min="10" max="85" value="35" />
+          </div>
+          <div class="ctrl-group grow">
+            <label>Opacite <span id="op-val">100</span> %</label>
+            <input id="opacity" type="range" min="20" max="100" value="100" />
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <label class="check"><input type="checkbox" id="mirror-h" /> Miroir H</label>
+          <label class="check"><input type="checkbox" id="mirror-v" /> Miroir V</label>
+          <label class="check"><input type="checkbox" id="always-top" checked /> Always on top</label>
+          <label class="check"><input type="checkbox" id="ignore-mouse" /> Click-through (souris traverse)</label>
+        </div>
+      </div>
+
+      <div class="tab-pane" data-tab="sources" hidden>
+        <p class="muted">Selecteurs caméra et micro. Une seule cam à la fois (Windows).</p>
+        <div class="ctrl-row">
+          <div class="ctrl-group grow">
+            <label>Camera</label>
+            <div class="row">
+              <select id="cam-device" style="flex:1"><option>Charge…</option></select>
+              <button id="btn-cam-refresh" title="Rafraichir">&#8634;</button>
+            </div>
+          </div>
+          <div class="ctrl-group grow">
+            <label>Micro</label>
+            <div class="row">
+              <select id="mic-device" style="flex:1"><option>Charge…</option></select>
+              <button id="btn-mic-refresh" title="Rafraichir">&#8634;</button>
+            </div>
+          </div>
+        </div>
+        <small class="muted">Le mode Voice utilise toujours le micro par defaut Windows (limite Web Speech API).</small>
+
+        <div class="ctrl-row" style="margin-top:14px">
+          <label class="check"><input type="checkbox" id="cam-overlay" /> Afficher la camera dans le prompter (PiP)</label>
+          <label class="check"><input type="checkbox" id="cam-blur" /> Flou fond cam (segmentation)</label>
+          <div class="ctrl-group">
+            <label>Intensite flou <span id="blur-val">8</span> px</label>
+            <input id="cam-blur-amount" type="range" min="0" max="25" value="8" />
+          </div>
+        </div>
+        <div class="row">
+          <video id="cam-preview" muted autoplay playsinline></video>
+        </div>
+      </div>
+
+      <div class="tab-pane" data-tab="balises" hidden>
+        <p class="muted">Insere <code>[nom]</code> dans le texte. Pause auto en mode Auto.</p>
+        <div id="tags-list" class="tags-list"></div>
+        <div class="row" style="margin-top:8px">
+          <button id="btn-tag-new" class="primary">+ Nouvelle balise</button>
+          <button id="btn-tags-defaults" title="Restaure les balises par defaut">Defauts</button>
+        </div>
+      </div>
+
+      <div class="tab-pane" data-tab="voice" hidden>
+        <p class="muted">Vosk : reconnaissance offline FR. Lance en arriere-plan.</p>
+        <div class="row">
+          <select id="voice-lang" disabled>
+            <option value="fr-FR" selected>Francais (FR)</option>
+          </select>
+          <button id="btn-voice-test">Demarrer / Arreter</button>
+          <button id="btn-vosk-retry" title="Relancer Vosk">&#8634;</button>
+        </div>
+        <div id="vosk-state" class="status">Vosk : initialisation…</div>
+        <div id="voice-status" class="status">Inactif</div>
+        <div id="voice-transcript" class="transcript"></div>
+      </div>
+
+      <div class="tab-pane" data-tab="record" hidden>
+        <p class="muted">MediaRecorder. Sortie webm dans Telechargements.</p>
+        <div class="row">
+          <select id="rec-source">
+            <option value="audio">Audio (micro)</option>
+            <option value="video">Video (webcam + micro)</option>
+            <option value="screen">Ecran + audio</option>
+          </select>
+        </div>
+        <div id="rec-status" class="status">Pret</div>
+      </div>
+
+      <div class="tab-pane" data-tab="obs" hidden>
+        <p class="muted">Active dans OBS : Outils > WebSocket Server Settings. Port 4455.</p>
+        <div class="row">
+          <input id="obs-host" placeholder="ws://127.0.0.1:4455" value="ws://127.0.0.1:4455" />
+          <input id="obs-pass" type="password" placeholder="Mot de passe (si defini)" />
+          <button id="btn-obs-connect" class="primary">Connecter</button>
+        </div>
+        <div id="obs-status" class="status">Deconnecte</div>
+        <div class="row">
+          <select id="obs-scene"><option>Connecte d'abord</option></select>
+          <button id="btn-obs-scene">Activer scene</button>
+        </div>
+        <div class="row">
+          <button id="btn-obs-record" class="big">&#9679; Toggle Record OBS</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="editor.js"></script>
+</body>
+</html>

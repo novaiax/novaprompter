@@ -1,0 +1,33 @@
+node_modules/
+out/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+*.local
+
+# Backend storage
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/data/
+
+# Mobile build artifacts
+mobile/icon-192.png
+mobile/icon-512.png
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Vosk modèle (download local, gros fichier)
+model-fr/
+*.zip

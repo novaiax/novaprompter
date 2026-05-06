@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NovaPrompter" />
+  <meta name="description" content="Telepromteur mobile pro — vitesse reglable, voice tracking, scripts illimites." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="app.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=Nunito:wght@400;600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
+  <title>NovaPrompter</title>
+</head>
+<body>
+  <!-- VUE HOME : liste scripts -->
+  <main id="view-home" class="view active">
+    <header class="top">
+      <h1>NovaPrompter</h1>
+      <button id="open-settings" class="icon-btn" aria-label="Reglages">⚙</button>
+    </header>
+    <div class="search">
+      <input id="search-input" type="search" placeholder="Rechercher un script…" />
+    </div>
+    <ul id="script-list" class="script-list"></ul>
+    <button id="new-script" class="fab" aria-label="Nouveau script">+</button>
+  </main>
+
+  <!-- VUE EDITOR : edition d'un script -->
+  <main id="view-editor" class="view">
+    <header class="top">
+      <button id="back-home" class="icon-btn" aria-label="Retour">←</button>
+      <input id="title-input" class="title-input" placeholder="Titre du script" />
+      <button id="clean-script" class="icon-btn" title="Nettoyer markdown">⌫</button>
+      <button id="delete-script" class="icon-btn danger" aria-label="Supprimer">🗑</button>
+    </header>
+    <textarea id="text-input" placeholder="Tape ou colle ton script ici…" autocapitalize="sentences"></textarea>
+    <div class="editor-toolbar">
+      <button class="tag-quick" data-insert="[souffle]">🌬 souffle</button>
+      <button class="tag-quick" data-insert="[pause]">⏸ pause</button>
+      <button class="tag-quick" data-insert="[regard]">👀 regard</button>
+    </div>
+    <button id="open-prompter" class="cta">▶ Lire</button>
+  </main>
+
+  <!-- VUE PROMPTER : plein ecran defilement -->
+  <main id="view-prompter" class="view prompter">
+    <div id="prompter-stage" class="prompter-stage">
+      <div id="focus-line" class="focus-line"></div>
+      <div id="prompter-text" class="prompter-text"></div>
+    </div>
+    <div id="prompter-controls" class="prompter-controls">
+      <div class="ctrl-top">
+        <button id="back-editor" class="icon-btn" aria-label="Retour">←</button>
+        <div class="seg">
+          <button class="seg-btn active" data-mode="auto">Auto</button>
+          <button class="seg-btn" data-mode="voice">Voice</button>
+        </div>
+        <button id="prompter-fullscreen" class="icon-btn" aria-label="Plein ecran">⛶</button>
+      </div>
+      <div class="ctrl-mid">
+        <span id="mode-status" class="status-mini">Pause</span>
+      </div>
+      <div class="ctrl-bottom">
+        <div class="slider-row">
+          <span class="slider-label">Vitesse <b id="speed-val">60</b></span>
+          <input id="speed-slider" type="range" min="10" max="400" value="60" />
+        </div>
+        <div class="slider-row">
+          <span class="slider-label">Taille <b id="size-val">42</b></span>
+          <input id="size-slider" type="range" min="20" max="100" value="42" />
+        </div>
+        <div class="action-row">
+          <button id="reset-btn" class="action-btn" aria-label="Reset">↺</button>
+          <button id="play-btn" class="play-btn" aria-label="Play/Pause">▶</button>
+          <button id="hide-controls" class="action-btn" aria-label="Cacher controles">⌃</button>
+        </div>
+      </div>
+    </div>
+    <button id="show-controls" class="show-ctrl-fab" hidden aria-label="Afficher controles">⋯</button>
+  </main>
+
+  <!-- MODAL SETTINGS -->
+  <div id="settings-modal" class="modal" hidden>
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="modal-content">
+      <header class="modal-head">
+        <h2>Reglages</h2>
+        <button id="close-settings" class="icon-btn">×</button>
+      </header>
+      <div class="modal-body">
+        <section class="setting-group">
+          <h3>Apparence</h3>
+          <label class="setting">
+            <span>Theme</span>
+            <select id="set-theme">
+              <option value="dark" selected>Blanc sur noir</option>
+              <option value="light">Noir sur blanc</option>
+              <option value="sepia">Sepia</option>
+              <option value="yellow">Jaune sur noir</option>
+              <option value="green">Vert sur noir</option>
+              <option value="custom">Personnalise</option>
+            </select>
+          </label>
+          <label class="setting" id="custom-fg-row" style="display:none">
+            <span>Couleur texte</span>
+            <input id="set-color-fg" type="color" value="#ffffff" />
+          </label>
+          <label class="setting" id="custom-bg-row" style="display:none">
+            <span>Couleur fond</span>
+            <input id="set-color-bg" type="color" value="#000000" />
+          </label>
+          <label class="setting">
+            <span>Police</span>
+            <select id="set-font">
+              <optgroup label="★ Anti-begaiement">
+                <option value="'Lexend', sans-serif" selected>Lexend ★</option>
+                <option value="'Atkinson Hyperlegible', sans-serif">Atkinson Hyperlegible ★</option>
+                <option value="'Nunito', sans-serif">Nunito ★</option>
+                <option value="'Source Sans 3', sans-serif">Source Sans 3 ★</option>
+                <option value="Verdana, Geneva, sans-serif">Verdana ★</option>
+                <option value="Tahoma, Geneva, sans-serif">Tahoma ★</option>
+              </optgroup>
+              <optgroup label="Sans-serif">
+                <option value="system-ui, -apple-system, sans-serif">Systeme</option>
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="'Roboto', sans-serif">Roboto</option>
+                <option value="'Lato', sans-serif">Lato</option>
+                <option value="'Montserrat', sans-serif">Montserrat</option>
+                <option value="'Poppins', sans-serif">Poppins</option>
+                <option value="'Open Sans', sans-serif">Open Sans</option>
+              </optgroup>
+              <optgroup label="Serif / Mono">
+                <option value="Georgia, serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times</option>
+                <option value="monospace">Mono</option>
+              </optgroup>
+            </select>
+          </label>
+          <label class="setting">
+            <span>Poids <b id="weight-val">500</b></span>
+            <input id="set-weight" type="range" min="300" max="900" step="100" value="500" />
+          </label>
+          <label class="setting">
+            <span>Interligne <b id="lh-val">1.6</b></span>
+            <input id="set-lh" type="range" min="120" max="220" value="160" />
+          </label>
+          <label class="setting">
+            <span>Espacement lettres <b id="ls-val">0</b> px</span>
+            <input id="set-ls" type="range" min="-2" max="8" value="0" />
+          </label>
+          <label class="setting checkbox">
+            <input id="set-align-left" type="checkbox" />
+            <span>Aligner a gauche</span>
+          </label>
+        </section>
+
+        <section class="setting-group">
+          <h3>Lecture</h3>
+          <label class="setting">
+            <span>Largeur ligne <b id="width-val">90</b>%</span>
+            <input id="set-width" type="range" min="40" max="100" value="90" />
+          </label>
+          <label class="setting">
+            <span>Position focus <b id="focus-val">50</b>%</span>
+            <input id="set-focus" type="range" min="10" max="85" value="50" />
+          </label>
+          <label class="setting">
+            <span>Avance voice <b id="lookahead-val">4</b> mots</span>
+            <input id="set-lookahead" type="range" min="0" max="12" value="4" />
+          </label>
+          <label class="setting checkbox">
+            <input id="set-mirror-h" type="checkbox" />
+            <span>Miroir horizontal</span>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-mirror-v" type="checkbox" />
+            <span>Miroir vertical</span>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-keep-awake" type="checkbox" checked />
+            <span>Empecher l'ecran de s'eteindre</span>
+          </label>
+        </section>
+
+        <section class="setting-group">
+          <h3>Balises</h3>
+          <p class="muted small">Insere <code>[nom]</code> dans le texte. Pause auto en mode auto.</p>
+          <div id="tags-list-mobile"></div>
+          <button id="add-tag" class="link-btn">+ Nouvelle balise</button>
+          <button id="reset-tags" class="link-btn">Restaurer balises par defaut</button>
+        </section>
+
+        <section class="setting-group" id="sync-group">
+          <h3>Synchronisation</h3>
+          <p class="muted small">Connecte-toi a un compte pour synchroniser tes scripts entre tes appareils.</p>
+          <label class="setting" id="sync-status-row">
+            <span>Etat</span>
+            <b id="sync-status">Hors ligne</b>
+          </label>
+          <label class="setting">
+            <span>Serveur</span>
+            <input id="sync-server" type="text" placeholder="https://novaprompter-api.up.railway.app" style="flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px" />
+          </label>
+          <div id="sync-logged-out">
+            <label class="setting">
+              <span>Email</span>
+              <input id="sync-email" type="email" placeholder="ton@email.com" style="flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px" />
+            </label>
+            <label class="setting">
+              <span>Mot de passe</span>
+              <input id="sync-password" type="password" placeholder="•••" style="flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px" />
+            </label>
+            <button id="sync-login" class="link-btn">Se connecter</button>
+            <button id="sync-register" class="link-btn">Creer un compte</button>
+          </div>
+          <div id="sync-logged-in" hidden>
+            <button id="sync-now" class="link-btn">Synchroniser maintenant</button>
+            <button id="sync-logout" class="link-btn danger">Se deconnecter</button>
+          </div>
+        </section>
+
+        <section class="setting-group" id="voice-group">
+          <h3>Voice (Web Speech API)</h3>
+          <p class="muted small">Marche sur Android Chrome / Edge. iOS : non supporté nativement.</p>
+          <label class="setting">
+            <span>Langue</span>
+            <select id="set-voice-lang">
+              <option value="fr-FR" selected>Francais (FR)</option>
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="es-ES">Espagnol</option>
+            </select>
+          </label>
+          <p id="voice-support" class="muted small"></p>
+        </section>
+
+        <section class="setting-group">
+          <h3>Donnees</h3>
+          <button id="export-data" class="link-btn">Exporter mes scripts (.json)</button>
+          <button id="import-data" class="link-btn">Importer un fichier .json</button>
+          <input id="import-file" type="file" accept=".json" hidden />
+          <button id="reset-data" class="link-btn danger">Tout effacer</button>
+        </section>
+
+        <p class="footer-info">NovaPrompter mobile · <span id="version">v1.0</span> · 100% local</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
