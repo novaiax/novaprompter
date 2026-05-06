@@ -81,7 +81,53 @@
   function closeModal() {
     const modal = document.getElementById('settings-modal');
     if (modal) modal.hidden = true;
+    const prev = document.getElementById('set-preview');
+    if (prev) prev.hidden = true;
   }
+
+  // ============= LIVE PREVIEW =============
+  function showPreview() {
+    const prev = document.getElementById('set-preview');
+    if (prev) prev.hidden = false;
+    refreshPreview();
+  }
+  function refreshPreview() {
+    const prev = document.getElementById('set-preview');
+    if (!prev) return;
+    // Read live settings from localStorage + slider DOM
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('nova:mobile:settings') || '{}'); } catch {}
+    const font   = (document.getElementById('set-font')?.value)   || s.font   || "'Lexend', sans-serif";
+    const weight = (document.getElementById('set-weight')?.value) || s.weight || '500';
+    const lh     = (document.getElementById('set-lh')?.value)     || s.lh     || '160';
+    const ls     = (document.getElementById('set-ls')?.value)     || s.ls     || '0';
+    const align  = document.getElementById('set-align-left')?.checked ? 'left' : 'center';
+    const fg     = document.getElementById('set-color-fg')?.value || s.colorFg || '#fff';
+    const bg     = document.getElementById('set-color-bg')?.value || s.colorBg || '';
+    const t = prev.querySelector('.set-preview-text');
+    if (t) {
+      t.style.fontFamily = font;
+      t.style.fontWeight = weight;
+      t.style.lineHeight = (lh / 100).toString();
+      t.style.letterSpacing = (ls || 0) + 'px';
+      t.style.textAlign = align;
+      t.style.color = fg;
+    }
+    if (bg) prev.style.background = bg;
+  }
+  // Hook into all modal inputs : when something changes, refresh preview
+  document.addEventListener('input', (e) => {
+    if (e.target.closest('#settings-modal')) {
+      const modal = document.getElementById('settings-modal');
+      if (modal && !modal.hidden) refreshPreview();
+    }
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.closest('#settings-modal')) {
+      const modal = document.getElementById('settings-modal');
+      if (modal && !modal.hidden) refreshPreview();
+    }
+  });
   // Triple-bind close X just to be safe
   document.getElementById('close-settings')?.addEventListener('click', closeModal);
   document.getElementById('settings-backdrop')?.addEventListener('click', closeModal);
@@ -116,6 +162,14 @@
   function openModalSection(grpKeys) {
     showOnlyGroup(grpKeys);
     openModal();
+    // Show live preview only for visual sections
+    const visualSections = ['text', 'playback', 'cam'];
+    if (grpKeys && grpKeys.some(k => visualSections.includes(k))) {
+      showPreview();
+    } else {
+      const prev = document.getElementById('set-preview');
+      if (prev) prev.hidden = true;
+    }
   }
   Object.keys(ROW_TO_GRP).forEach(rowId => {
     const el = document.getElementById(rowId);

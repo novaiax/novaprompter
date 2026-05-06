@@ -1099,6 +1099,31 @@ body.show-tabbar .tabbar { display: grid; }
   padding: 16px 20px env(safe-area-inset-bottom);
   overflow-y: auto;
 }
+/* live preview banner inside modal */
+.set-preview {
+  margin: -8px -8px 18px;
+  padding: 18px 16px;
+  background: linear-gradient(180deg, rgba(40,42,52,0.7), rgba(28,30,38,0.7));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  max-height: 30vh;
+  overflow: hidden;
+}
+.set-preview[hidden] { display: none; }
+.set-preview-text {
+  color: var(--text);
+  font-family: var(--prev-font, 'Lexend', sans-serif);
+  font-weight: var(--prev-weight, 500);
+  font-size: var(--prev-size, 22px);
+  line-height: var(--prev-lh, 1.5);
+  letter-spacing: var(--prev-ls, 0px);
+  text-align: var(--prev-align, left);
+}
 .setting-group { margin-bottom: 24px; }
 .setting-group h3 {
   font-size: 13px;
