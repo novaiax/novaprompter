@@ -41,9 +41,11 @@ function loadSettings() {
     mirrorH: false, mirrorV: false, alignLeft: false,
     keepAwake: true,
     voiceLang: 'fr-FR',
-    speed: 60, fontSize: 42,
+    speed: 60, fontSize: 32,
     textOpa: 100,
     camOn: false, camFacing: 'user', camMirror: true,
+    camBlur: false, camBlurAmount: 12,
+    textBoxH: null,
     syncServer: CORRECT_SYNC_SERVER,
     syncToken: '', syncEmail: ''
   };
@@ -282,20 +284,66 @@ function togglePlay() {
   elModeStatus.textContent = promptState.playing ? (promptState.mode === 'auto' ? 'Lecture auto' : 'Voice') : 'Pause';
 }
 
-$$('[data-mode]').forEach(b => b.addEventListener('click', () => {
-  $$('[data-mode]').forEach(x => x.classList.toggle('active', x === b));
+$$('.mode-btn[data-mode]').forEach(b => b.addEventListener('click', () => {
+  $$('.mode-btn[data-mode]').forEach(x => x.classList.toggle('active', x === b));
   promptState.mode = b.dataset.mode;
   if (promptState.mode === 'voice') startVoice();
   else stopVoice();
 }));
 
-$('#hide-controls').addEventListener('click', () => {
-  elControls.classList.add('hidden');
-  elShowCtrl.hidden = false;
+// Bouton edit (ouvre l'editor) et settings (ouvre la modal)
+const elEditBtn = document.getElementById('edit-btn');
+const elSettingsBtn = document.getElementById('settings-btn');
+if (elEditBtn) elEditBtn.addEventListener('click', () => {
+  if (mediaRecorder) stopRecording();
+  stopCam();
+  showView('editor');
 });
-$('#show-controls').addEventListener('click', () => {
-  elControls.classList.remove('hidden');
-  elShowCtrl.hidden = true;
+if (elSettingsBtn) elSettingsBtn.addEventListener('click', () => openSettings());
+
+// Mic toggle
+const elMicToggle = document.getElementById('mic-toggle');
+let micEnabled = true;
+if (elMicToggle) elMicToggle.addEventListener('click', () => {
+  micEnabled = !micEnabled;
+  elMicToggle.classList.toggle('muted', !micEnabled);
+  if (camStream) {
+    camStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
+  }
+});
+
+// Boite de texte : drag pour redimensionner
+let textBoxResizing = false;
+const elTextBox = document.getElementById('prompter-text-box');
+const elResizeBtn = document.getElementById('text-resize-btn');
+if (elResizeBtn) {
+  const onResizeMove = (e) => {
+    if (!textBoxResizing) return;
+    const y = (e.touches ? e.touches[0].clientY : e.clientY);
+    const top = elTextBox.getBoundingClientRect().top;
+    const newH = Math.max(120, Math.min(window.innerHeight - 280, y - top));
+    elTextBox.style.setProperty('--text-box-h', newH + 'px');
+    settings.textBoxH = newH; saveSettings(settings);
+  };
+  const onResizeStart = (e) => {
+    textBoxResizing = true;
+    e.preventDefault();
+  };
+  const onResizeEnd = () => { textBoxResizing = false; };
+  elResizeBtn.addEventListener('touchstart', onResizeStart, { passive: false });
+  elResizeBtn.addEventListener('mousedown', onResizeStart);
+  document.addEventListener('touchmove', onResizeMove, { passive: false });
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('touchend', onResizeEnd);
+  document.addEventListener('mouseup', onResizeEnd);
+}
+
+// Bouton scroll-toggle : reprendre apres pause manuelle (en swipe sur le texte)
+const elScrollToggle = document.getElementById('scroll-toggle-btn');
+if (elScrollToggle) elScrollToggle.addEventListener('click', () => {
+  pauseUntil = 0;
+  document.querySelector('.prompter').classList.remove('scroll-paused');
+  if (!promptState.playing && promptState.mode === 'auto') togglePlay();
 });
 
 // Opacite texte
@@ -393,22 +441,28 @@ let camStream = null;
 async function startCam(facing = settings.camFacing) {
   await stopCam();
   try {
+    // On demande aussi l'audio pour avoir tout le pipeline pret (et eviter une 2eme demande)
     camStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
+      video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: true
     });
+    camStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
     elCamVideo.srcObject = camStream;
     document.querySelector('.prompter').classList.add('has-cam');
     document.querySelector('.prompter').classList.toggle('cam-mirror', settings.camMirror);
     settings.camOn = true; settings.camFacing = facing;
     saveSettings(settings);
-    elCamToggle.textContent = '📷';
-    elCamToggle.classList.add('active');
+    if (elCamToggle) elCamToggle.classList.add('active');
+    setupAudioMeter(camStream);
+    if (settings.camBlur) startSegmentedBlur();
   } catch (e) {
     toast('Erreur camera : ' + e.message);
   }
 }
 async function stopCam() {
+  stopSegmentedBlur();
+  if (audioMeterRaf) cancelAnimationFrame(audioMeterRaf);
+  document.documentElement.style.setProperty('--audio-level', '0%');
   if (camStream) {
     camStream.getTracks().forEach(t => t.stop());
     camStream = null;
@@ -416,8 +470,77 @@ async function stopCam() {
   elCamVideo.srcObject = null;
   document.querySelector('.prompter').classList.remove('has-cam');
   settings.camOn = false; saveSettings(settings);
-  elCamToggle.textContent = '📹';
-  elCamToggle.classList.remove('active');
+  if (elCamToggle) elCamToggle.classList.remove('active');
+}
+
+// ================= SEGMENTED BACKGROUND BLUR (MediaPipe) =================
+let segmenter = null, segLoopRunning = false;
+const elCamCanvas = $('#cam-canvas');
+const segCtx = elCamCanvas ? elCamCanvas.getContext('2d') : null;
+const segTempCanvas = document.createElement('canvas');
+const segTctx = segTempCanvas.getContext('2d');
+
+async function loadMediaPipe() {
+  if (window.SelfieSegmentation) return window.SelfieSegmentation;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = () => resolve(window.SelfieSegmentation);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function startSegmentedBlur() {
+  if (!camStream || segLoopRunning) return;
+  try {
+    const SS = await loadMediaPipe();
+    if (!segmenter) {
+      segmenter = new SS({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}` });
+      segmenter.setOptions({ modelSelection: 1, selfieMode: false });
+      segmenter.onResults(onSegResults);
+      await segmenter.initialize();
+    }
+    document.querySelector('.prompter').classList.add('has-blur');
+    segLoopRunning = true;
+    const tick = async () => {
+      if (!segLoopRunning || !segmenter) return;
+      if (elCamVideo.readyState >= 2 && elCamVideo.videoWidth) {
+        try { await segmenter.send({ image: elCamVideo }); } catch {}
+      }
+      if (segLoopRunning) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  } catch (e) { console.warn('MediaPipe failed', e); }
+}
+
+function stopSegmentedBlur() {
+  segLoopRunning = false;
+  document.querySelector('.prompter').classList.remove('has-blur');
+}
+
+function onSegResults(results) {
+  if (!segCtx || !results.image) return;
+  const w = results.image.width, h = results.image.height;
+  if (elCamCanvas.width !== w) elCamCanvas.width = w;
+  if (elCamCanvas.height !== h) elCamCanvas.height = h;
+  if (segTempCanvas.width !== w) segTempCanvas.width = w;
+  if (segTempCanvas.height !== h) segTempCanvas.height = h;
+  // Fond flou
+  segCtx.save();
+  segCtx.filter = `blur(${settings.camBlurAmount || 12}px)`;
+  segCtx.drawImage(results.image, 0, 0, w, h);
+  segCtx.filter = 'none';
+  // Sujet net
+  segTctx.save();
+  segTctx.clearRect(0, 0, w, h);
+  segTctx.drawImage(results.image, 0, 0, w, h);
+  segTctx.globalCompositeOperation = 'destination-in';
+  segTctx.drawImage(results.segmentationMask, 0, 0, w, h);
+  segTctx.restore();
+  segCtx.drawImage(segTempCanvas, 0, 0);
+  segCtx.restore();
 }
 elCamToggle.addEventListener('click', () => {
   if (camStream) stopCam();
@@ -437,19 +560,18 @@ let recStartTs = 0;
 let recTimer = null;
 
 async function startRecording() {
-  // Stream combine cam + audio
   try {
-    if (!camStream) await startCam();
-    // On a besoin de l'audio aussi (camStream n'en a pas) — on cree un nouveau stream complet
+    // Stream combine cam + audio
     const fullStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: settings.camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: { facingMode: settings.camFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
       audio: true
     });
-    // remplace le preview par ce stream complet
     if (camStream) camStream.getTracks().forEach(t => t.stop());
     camStream = fullStream;
     elCamVideo.srcObject = fullStream;
+    fullStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
     document.querySelector('.prompter').classList.add('has-cam');
+    setupAudioMeter(fullStream);
 
     const mime = pickMime();
     mediaRecorder = new MediaRecorder(fullStream, { mimeType: mime });
@@ -469,6 +591,34 @@ async function startRecording() {
   }
 }
 
+// Audio level meter (visualise le micro)
+let audioCtx = null, audioAnalyser = null, audioMeterRaf = null;
+function setupAudioMeter(stream) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioAnalyser) try { audioAnalyser.disconnect(); } catch {}
+    const source = audioCtx.createMediaStreamSource(stream);
+    audioAnalyser = audioCtx.createAnalyser();
+    audioAnalyser.fftSize = 512;
+    source.connect(audioAnalyser);
+    if (audioMeterRaf) cancelAnimationFrame(audioMeterRaf);
+    const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+    const tickMeter = () => {
+      audioAnalyser.getByteTimeDomainData(buf);
+      let max = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const v = Math.abs(buf[i] - 128);
+        if (v > max) max = v;
+      }
+      const pct = Math.min(100, Math.round((max / 64) * 100));
+      document.documentElement.style.setProperty('--audio-level', pct + '%');
+      audioMeterRaf = requestAnimationFrame(tickMeter);
+    };
+    tickMeter();
+  } catch {}
+}
+
 function stopRecording() {
   if (!mediaRecorder) return;
   try { mediaRecorder.stop(); } catch {}
@@ -480,18 +630,31 @@ function stopRecording() {
   if (promptState.playing) togglePlay();
 }
 
-function finalizeRecording(mime) {
+async function finalizeRecording(mime) {
   if (!recChunks.length) return;
   const blob = new Blob(recChunks, { type: mime });
-  const ext = mime.includes('webm') ? 'webm' : (mime.includes('mp4') ? 'mp4' : 'webm');
+  const ext = mime.includes('mp4') ? 'mp4' : 'webm';
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const a = document.createElement('a');
+  const filename = `novaprompter-${ts}.${ext}`;
+  const file = new File([blob], filename, { type: mime });
+
+  // Sur iOS/Android : Web Share API niveau 2 → "Save to Photos" / "Save to Gallery"
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'NovaPrompter' });
+      toast('Video prête à sauvegarder');
+      recChunks = [];
+      return;
+    } catch (e) { /* user cancel ou pas supporté, fallback */ }
+  }
+  // Fallback : download classique
   const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
   a.href = url;
-  a.download = `novaprompter-${ts}.${ext}`;
+  a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('Video sauvegardee : ' + a.download);
+  toast('Video téléchargée : ' + filename);
   recChunks = [];
 }
 
@@ -551,15 +714,30 @@ elSizeSlider.addEventListener('input', () => {
 let swipeStart = null;
 elStage.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
-  swipeStart = { y: e.touches[0].clientY, scrollPx: promptState.scrollPx, t: Date.now() };
+  swipeStart = { y: e.touches[0].clientY, scrollPx: promptState.scrollPx, progressRatio: promptState.progressRatio, t: Date.now() };
 }, { passive: true });
 elStage.addEventListener('touchmove', (e) => {
   if (!swipeStart || e.touches.length !== 1) return;
   const dy = swipeStart.y - e.touches[0].clientY;
   if (Math.abs(dy) > 5) {
-    promptState.scrollPx = Math.max(0, Math.min(maxScroll(), swipeStart.scrollPx + dy));
-    if (promptState.playing && promptState.mode === 'auto') pauseUntil = Date.now() + 1500;
-    applyScroll();
+    if (promptState.mode === 'auto') {
+      promptState.scrollPx = Math.max(0, Math.min(maxScroll(), swipeStart.scrollPx + dy));
+      if (promptState.playing) {
+        // Pause indefiniment jusqu'a ce que l'utilisateur clique scroll-toggle
+        pauseUntil = Date.now() + 99999999;
+        document.querySelector('.prompter').classList.add('scroll-paused');
+      }
+      applyScroll();
+    } else {
+      // Voice mode : modifie progressRatio (= avance dans le script)
+      if (!promptState.tokens.length) return;
+      const total = promptState.tokens.length;
+      const ratio = Math.max(0, Math.min(1, swipeStart.progressRatio + (dy / 200)));
+      promptState.progressRatio = ratio;
+      voiceIdx = Math.floor(ratio * total);
+      phraseAnchor = voiceIdx;
+      applyScroll();
+    }
   }
 }, { passive: true });
 elStage.addEventListener('touchend', () => { swipeStart = null; });
@@ -819,6 +997,9 @@ function openSettings() {
   if ($('#set-align-left')) $('#set-align-left').checked = settings.alignLeft;
   $('#set-keep-awake').checked = settings.keepAwake;
   $('#set-voice-lang').value = settings.voiceLang;
+  if (elSetCamBlur) elSetCamBlur.checked = !!settings.camBlur;
+  if (elSetCamBlurAmount) { elSetCamBlurAmount.value = settings.camBlurAmount || 12; elCamBlurVal.textContent = settings.camBlurAmount || 12; }
+  if (elSetCamMirror) elSetCamMirror.checked = settings.camMirror !== false;
   $('#voice-support').textContent = speechSupported() ? '✓ Voice supporté sur ce navigateur' : '✗ Voice non supporté (essaie Chrome Android)';
   renderTagsMobile();
   refreshSyncUI();
@@ -863,6 +1044,26 @@ const mirV = $('#set-mirror-v'); if (mirV) mirV.addEventListener('change', () =>
 const alL = $('#set-align-left'); if (alL) alL.addEventListener('change', () => { settings.alignLeft = alL.checked; saveSettings(settings); applySettings(); });
 $('#set-keep-awake').addEventListener('change', () => { settings.keepAwake = $('#set-keep-awake').checked; saveSettings(settings); });
 $('#set-voice-lang').addEventListener('change', () => { settings.voiceLang = $('#set-voice-lang').value; saveSettings(settings); });
+
+// Cam settings
+const elSetCamBlur = $('#set-cam-blur');
+const elSetCamBlurAmount = $('#set-cam-blur-amount');
+const elCamBlurVal = $('#cam-blur-val');
+const elSetCamMirror = $('#set-cam-mirror');
+if (elSetCamBlur) elSetCamBlur.addEventListener('change', () => {
+  settings.camBlur = elSetCamBlur.checked; saveSettings(settings);
+  if (settings.camBlur && camStream) startSegmentedBlur();
+  else stopSegmentedBlur();
+});
+if (elSetCamBlurAmount) elSetCamBlurAmount.addEventListener('input', () => {
+  settings.camBlurAmount = +elSetCamBlurAmount.value;
+  elCamBlurVal.textContent = settings.camBlurAmount;
+  saveSettings(settings);
+});
+if (elSetCamMirror) elSetCamMirror.addEventListener('change', () => {
+  settings.camMirror = elSetCamMirror.checked; saveSettings(settings);
+  document.querySelector('.prompter').classList.toggle('cam-mirror', settings.camMirror);
+});
 
 // ================= TAGS EDITOR (mobile) =================
 const elTagsListMobile = document.createElement('div');
