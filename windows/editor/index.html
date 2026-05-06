@@ -83,6 +83,7 @@
         <button class="tab-btn" data-tab="balises">Balises</button>
         <button class="tab-btn" data-tab="voice">Voice / Vosk</button>
         <button class="tab-btn" data-tab="record">Enregistrement</button>
+        <button class="tab-btn" data-tab="sync">Sync</button>
         <button class="tab-btn" data-tab="obs">OBS</button>
       </nav>
 
@@ -242,6 +243,43 @@
           </select>
         </div>
         <div id="rec-status" class="status">Pret</div>
+      </div>
+
+      <div class="tab-pane" data-tab="sync" hidden>
+        <p class="muted">Synchronise tes scripts entre PC et mobile via Railway. Compte = email + mot de passe.</p>
+        <div class="ctrl-row">
+          <div class="ctrl-group grow">
+            <label>Serveur</label>
+            <input id="sync-server" type="text" value="https://novaprompter-production.up.railway.app" />
+          </div>
+          <div class="ctrl-group">
+            <label>Etat</label>
+            <div id="sync-status" class="status">Hors ligne</div>
+          </div>
+        </div>
+        <div id="sync-logged-out">
+          <div class="ctrl-row">
+            <div class="ctrl-group grow">
+              <label>Email</label>
+              <input id="sync-email" type="email" placeholder="ton@email.com" />
+            </div>
+            <div class="ctrl-group grow">
+              <label>Mot de passe</label>
+              <input id="sync-password" type="password" />
+            </div>
+          </div>
+          <div class="row">
+            <button id="sync-login" class="primary">Se connecter</button>
+            <button id="sync-register">Creer un compte</button>
+          </div>
+        </div>
+        <div id="sync-logged-in" hidden>
+          <div class="row">
+            <button id="sync-now" class="primary">Synchroniser maintenant</button>
+            <button id="sync-logout" class="danger">Se deconnecter</button>
+          </div>
+          <p class="muted" style="font-size:11px">Auto-sync au demarrage et apres chaque modif (debounced 3s).</p>
+        </div>
       </div>
 
       <div class="tab-pane" data-tab="obs" hidden>

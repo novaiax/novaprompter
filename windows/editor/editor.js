@@ -920,5 +920,133 @@ if (elCamWinOpen) elCamWinOpen.addEventListener('click', () => {
 });
 if (elCamWinClose) elCamWinClose.addEventListener('click', () => window.nova.camOverlayClose());
 
+// ---------- SYNC RAILWAY (cloud) ----------
+const SYNC_KEY = 'novaprompter:sync';
+let syncCfg = (() => {
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY) || '{}'); }
+  catch { return {}; }
+})();
+syncCfg.server = syncCfg.server || 'https://novaprompter-production.up.railway.app';
+
+const elSyncServer = document.getElementById('sync-server');
+const elSyncEmail = document.getElementById('sync-email');
+const elSyncPassword = document.getElementById('sync-password');
+const elSyncStatus = document.getElementById('sync-status');
+const elSyncLogin = document.getElementById('sync-login');
+const elSyncRegister = document.getElementById('sync-register');
+const elSyncLogout = document.getElementById('sync-logout');
+const elSyncNow = document.getElementById('sync-now');
+const elSyncLoggedIn = document.getElementById('sync-logged-in');
+const elSyncLoggedOut = document.getElementById('sync-logged-out');
+
+function saveSyncCfg() { localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg)); }
+function refreshSyncUi() {
+  if (elSyncServer) elSyncServer.value = syncCfg.server;
+  if (syncCfg.token) {
+    if (elSyncStatus) { elSyncStatus.textContent = 'Connecte (' + (syncCfg.email || '') + ')'; elSyncStatus.className = 'status ok'; }
+    if (elSyncLoggedIn) elSyncLoggedIn.hidden = false;
+    if (elSyncLoggedOut) elSyncLoggedOut.hidden = true;
+  } else {
+    if (elSyncStatus) { elSyncStatus.textContent = 'Hors ligne'; elSyncStatus.className = 'status'; }
+    if (elSyncLoggedIn) elSyncLoggedIn.hidden = true;
+    if (elSyncLoggedOut) elSyncLoggedOut.hidden = false;
+  }
+}
+refreshSyncUi();
+
+if (elSyncServer) elSyncServer.addEventListener('change', () => { syncCfg.server = elSyncServer.value.replace(/\/+$/, ''); saveSyncCfg(); });
+
+async function syncApi(path, opts = {}) {
+  const url = (syncCfg.server || '').replace(/\/+$/, '') + path;
+  const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (syncCfg.token) headers['Authorization'] = 'Bearer ' + syncCfg.token;
+  const r = await fetch(url, Object.assign({ headers }, opts));
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  return r.json();
+}
+
+if (elSyncRegister) elSyncRegister.addEventListener('click', async () => {
+  const email = elSyncEmail.value.trim(), password = elSyncPassword.value;
+  if (!email || !password) return;
+  try {
+    const r = await syncApi('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+    syncCfg.token = r.token; syncCfg.email = email; saveSyncCfg(); refreshSyncUi();
+    await syncNow();
+  } catch (e) { if (elSyncStatus) { elSyncStatus.textContent = 'Erreur: ' + e.message; elSyncStatus.className = 'status err'; } }
+});
+if (elSyncLogin) elSyncLogin.addEventListener('click', async () => {
+  const email = elSyncEmail.value.trim(), password = elSyncPassword.value;
+  if (!email || !password) return;
+  try {
+    const r = await syncApi('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    syncCfg.token = r.token; syncCfg.email = email; saveSyncCfg(); refreshSyncUi();
+    await syncNow();
+  } catch (e) { if (elSyncStatus) { elSyncStatus.textContent = 'Erreur: ' + e.message; elSyncStatus.className = 'status err'; } }
+});
+if (elSyncLogout) elSyncLogout.addEventListener('click', () => {
+  syncCfg.token = ''; syncCfg.email = ''; saveSyncCfg(); refreshSyncUi();
+});
+if (elSyncNow) elSyncNow.addEventListener('click', () => syncNow());
+
+async function syncNow() {
+  if (!syncCfg.token) return;
+  try {
+    if (elSyncStatus) { elSyncStatus.textContent = 'Sync en cours…'; elSyncStatus.className = 'status warn'; }
+    saveCurrent(); // sauvegarde le script en cours avant push
+    const r = await syncApi('/sync', {
+      method: 'POST',
+      body: JSON.stringify({
+        scripts,
+        tags,
+        settings: { theme, fontFamily }
+      })
+    });
+    if (Array.isArray(r.scripts)) {
+      // Merge : on garde le plus recent par id
+      const byId = new Map(scripts.map(s => [s.id, s]));
+      for (const remote of r.scripts) {
+        const local = byId.get(remote.id);
+        if (!local || (remote.updatedAt || 0) > (local.updatedAt || 0)) byId.set(remote.id, remote);
+      }
+      scripts = [...byId.values()];
+      saveAll(scripts);
+      // Re-render la liste de scripts
+      renderList();
+      // Si le script courant a changé sur le serveur, on met a jour la textarea
+      const cur = scripts.find(s => s.id === currentId);
+      if (cur && (els.editor.value !== cur.content || els.title.value !== cur.title)) {
+        els.editor.value = cur.content;
+        els.title.value = cur.title;
+        syncToPrompter();
+      }
+    }
+    if (Array.isArray(r.tags) && r.tags.length) {
+      tags = r.tags;
+      saveTags(tags);
+      renderTags();
+      voice.setTags(tags.map(t => t.name));
+    }
+    if (elSyncStatus) { elSyncStatus.textContent = 'Sync OK · ' + new Date().toLocaleTimeString(); elSyncStatus.className = 'status ok'; }
+  } catch (e) {
+    if (elSyncStatus) { elSyncStatus.textContent = 'Echec : ' + e.message.slice(0, 80); elSyncStatus.className = 'status err'; }
+  }
+}
+
+// Auto-sync : 3s apres la derniere modif
+let syncDebounce = null;
+function scheduleSync() {
+  if (!syncCfg.token) return;
+  clearTimeout(syncDebounce);
+  syncDebounce = setTimeout(() => syncNow().catch(() => {}), 3000);
+}
+// Listener global : tout input/change déclenche une sync (en plus du save)
+document.addEventListener('input', scheduleSync, true);
+document.addEventListener('change', scheduleSync, true);
+
+// Sync au démarrage (après ~2s pour laisser tout le init se finir)
+if (syncCfg.token) setTimeout(() => syncNow().catch(() => {}), 2000);
+// Sync immédiate à la fermeture
+window.addEventListener('beforeunload', () => { if (syncCfg.token) syncNow().catch(() => {}); });
+
 // First sync au cas ou prompter ouvert
 syncToPrompter();
