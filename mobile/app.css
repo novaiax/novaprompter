@@ -769,6 +769,16 @@ body.show-tabbar .tabbar { display: grid; }
   object-fit: cover;
   z-index: 1;
 }
+/* Par defaut : cam-video visible, canvas cache */
+.cam-canvas { display: none; }
+/* Quand le flou est actif : on bascule */
+.prompter.has-blur .cam-video { display: none; }
+.prompter.has-blur .cam-canvas { display: block; }
+/* Mirror selfie */
+.prompter.cam-mirror .cam-video,
+.prompter.cam-mirror .cam-canvas {
+  transform: scaleX(-1);
+}
 .cam-placeholder {
   position: absolute;
   inset: 0;
