@@ -246,6 +246,48 @@
   }
   window.__refreshRecordings = refreshRecordings;
 
+  // ============= BACKUP HANDLERS (ne dependent pas d'app.js) =============
+  // Si app.js plante, le + script doit quand meme creer un script
+  function backupNewScript() {
+    try {
+      const SCRIPTS_KEY = 'nova:mobile:scripts';
+      const list = JSON.parse(localStorage.getItem(SCRIPTS_KEY) || '[]');
+      const id = 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+      const s = { id, title: 'Nouveau script', content: '', updatedAt: Date.now() };
+      list.push(s);
+      localStorage.setItem(SCRIPTS_KEY, JSON.stringify(list));
+      // Switch to editor view
+      document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-editor')?.classList.add('active');
+      const titleInput = document.getElementById('title-input');
+      const textInput  = document.getElementById('text-input');
+      if (titleInput) titleInput.value = s.title;
+      if (textInput) textInput.value = '';
+      // Try to also call app.js's openEditor if exposed
+      console.log('[ui-tabs] backup new script created', id);
+    } catch (e) { console.error('[ui-tabs] backupNewScript error', e); }
+  }
+  // Bind avec capture pour passer avant app.js si besoin
+  const newBtn = document.getElementById('new-script');
+  if (newBtn) {
+    newBtn.addEventListener('click', () => {
+      console.log('[ui-tabs] + script clicked');
+      // Si apres 50ms aucun script n'a ete cree (app.js cassé), backup
+      const before = (function () {
+        try { return JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]').length; }
+        catch { return 0; }
+      })();
+      setTimeout(() => {
+        let after = 0;
+        try { after = JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]').length; } catch {}
+        if (after === before) {
+          console.warn('[ui-tabs] app.js handler did not run, using backup');
+          backupNewScript();
+        }
+      }, 80);
+    });
+  }
+
   // ============= INIT =============
   function init() {
     setActiveTab('scripts');
