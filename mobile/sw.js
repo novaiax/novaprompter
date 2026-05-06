@@ -1,5 +1,6 @@
-// Service worker NovaPrompter mobile — cache-first pour offline
-const CACHE = 'novaprompter-v1';
+// Service worker NovaPrompter mobile — network-first pour les fichiers app
+// (pour que les updates soient prises en compte rapidement), cache-first pour les assets externes.
+const CACHE = 'novaprompter-v3';
 const FILES = [
   './',
   './index.html',
@@ -21,16 +22,28 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  // Cache-first pour les ressources de l'app
   if (req.method !== 'GET') return;
-  e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      // Cache opportuniste pour Google Fonts
-      if (req.url.includes('fonts.googleapis.com') || req.url.includes('fonts.gstatic.com')) {
+  const url = new URL(req.url);
+  const isAppFile = url.origin === self.location.origin;
+
+  if (isAppFile) {
+    // Network-first pour les fichiers de l'app : on tente le réseau, fallback cache
+    // -> les updates sont prises en compte au prochain refresh.
+    e.respondWith(
+      fetch(req).then(res => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(req, clone)).catch(() => {});
-      }
-      return res;
-    }).catch(() => caches.match('./index.html')))
-  );
+        return res;
+      }).catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
+    );
+  } else {
+    // Cache-first pour les ressources externes (Google Fonts, MediaPipe CDN)
+    e.respondWith(
+      caches.match(req).then(hit => hit || fetch(req).then(res => {
+        const clone = res.clone();
+        caches.open(CACHE).then(c => c.put(req, clone)).catch(() => {});
+        return res;
+      }))
+    );
+  }
 });

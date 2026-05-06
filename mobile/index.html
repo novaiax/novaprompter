@@ -11,7 +11,29 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="app.css" />
+  <script>
+    // Migration immédiate (avant app.js) : si l'utilisateur a une vieille URL Railway,
+    // on la remplace direct dans localStorage. Bypasse le cache du SW.
+    (function () {
+      try {
+        var k = 'nova:mobile:settings';
+        var raw = localStorage.getItem(k);
+        if (!raw) return;
+        var s = JSON.parse(raw);
+        var clean = (s.syncServer || '').replace(/\/+$/, '');
+        var bad = [
+          'https://novaprompter-api.up.railway.app',
+          'http://novaprompter-api.up.railway.app',
+          'https://novaprompter.up.railway.app'
+        ];
+        if (bad.indexOf(clean) !== -1) {
+          s.syncServer = 'https://novaprompter-production.up.railway.app';
+          localStorage.setItem(k, JSON.stringify(s));
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=Nunito:wght@400;600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -36,11 +58,13 @@
     <header class="top">
       <button id="back-home" class="icon-btn" aria-label="Retour">←</button>
       <input id="title-input" class="title-input" placeholder="Titre du script" />
-      <button id="clean-script" class="icon-btn" title="Nettoyer markdown">⌫</button>
       <button id="delete-script" class="icon-btn danger" aria-label="Supprimer">🗑</button>
     </header>
     <textarea id="text-input" placeholder="Tape ou colle ton script ici…" autocapitalize="sentences"></textarea>
     <div class="editor-toolbar">
+      <button id="clean-script" class="tag-quick" title="Nettoyer markdown (titres, timecodes, etc.)">✨ Nettoyer</button>
+      <button id="save-script" class="tag-quick" title="Enregistrer maintenant">💾 Enregistrer</button>
+      <span class="toolbar-sep"></span>
       <button class="tag-quick" data-insert="[souffle]">🌬 souffle</button>
       <button class="tag-quick" data-insert="[pause]">⏸ pause</button>
       <button class="tag-quick" data-insert="[regard]">👀 regard</button>
