@@ -1,11 +1,12 @@
 // Service worker NovaPrompter mobile — network-first pour les fichiers app
 // (pour que les updates soient prises en compte rapidement), cache-first pour les assets externes.
-const CACHE = 'novaprompter-v3';
+const CACHE = 'novaprompter-v5';
 const FILES = [
   './',
   './index.html',
   './app.css',
   './app.js',
+  './ui-tabs.js',
   './manifest.json',
   './icon.svg'
 ];

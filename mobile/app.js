@@ -385,9 +385,9 @@ if (elScrollToggle) elScrollToggle.addEventListener('click', () => {
 // Opacite texte
 const elOpaSlider = $('#opa-slider');
 const elOpaVal = $('#opa-val');
-elOpaSlider.addEventListener('input', () => {
+if (elOpaSlider) elOpaSlider.addEventListener('input', () => {
   settings.textOpa = +elOpaSlider.value;
-  elOpaVal.textContent = settings.textOpa;
+  if (elOpaVal) elOpaVal.textContent = settings.textOpa;
   document.documentElement.style.setProperty('--text-opa', settings.textOpa / 100);
   saveSettings(settings);
 });
