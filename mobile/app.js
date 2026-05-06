@@ -43,7 +43,7 @@ function loadSettings() {
     voiceLang: 'fr-FR',
     speed: 60, fontSize: 32,
     textOpa: 100,
-    camOn: false, camFacing: 'user', camMirror: true,
+    camOn: true, camFacing: 'user', camMirror: true,
     camBlur: false, camBlurAmount: 12,
     textBoxH: null,
     syncServer: CORRECT_SYNC_SERVER,

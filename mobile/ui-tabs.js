@@ -271,8 +271,6 @@
   const newBtn = document.getElementById('new-script');
   if (newBtn) {
     newBtn.addEventListener('click', () => {
-      console.log('[ui-tabs] + script clicked');
-      // Si apres 50ms aucun script n'a ete cree (app.js cassé), backup
       const before = (function () {
         try { return JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]').length; }
         catch { return 0; }
@@ -281,12 +279,189 @@
         let after = 0;
         try { after = JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]').length; } catch {}
         if (after === before) {
-          console.warn('[ui-tabs] app.js handler did not run, using backup');
           backupNewScript();
         }
       }, 80);
     });
   }
+
+  // ============= BACKUP : EDITEUR (clean/save/tag-quick/commencer) =============
+  function getCurScriptId() {
+    try {
+      const list = JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]');
+      // Le script en cours d'edition est le dernier modifie ouvert
+      // On utilise le 1er sortant (sort par updatedAt desc)
+      list.sort((a,b) => b.updatedAt - a.updatedAt);
+      return list[0]?.id;
+    } catch { return null; }
+  }
+  function saveCurrentScript() {
+    try {
+      const titleInput = document.getElementById('title-input');
+      const textInput  = document.getElementById('text-input');
+      if (!titleInput || !textInput) return;
+      const list = JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]');
+      const id = getCurScriptId();
+      const s = list.find(x => x.id === id);
+      if (s) {
+        s.title = titleInput.value;
+        s.content = textInput.value;
+        s.updatedAt = Date.now();
+        localStorage.setItem('nova:mobile:scripts', JSON.stringify(list));
+      }
+    } catch {}
+  }
+  function insertAtCursor(textarea, text) {
+    if (!textarea) return;
+    const start = textarea.selectionStart || textarea.value.length;
+    const end = textarea.selectionEnd || textarea.value.length;
+    textarea.value = textarea.value.slice(0, start) + text + textarea.value.slice(end);
+    textarea.selectionStart = textarea.selectionEnd = start + text.length;
+    textarea.focus();
+    saveCurrentScript();
+  }
+  function cleanMarkdown(text) {
+    if (!text) return '';
+    const lines = text.split(/\r?\n/);
+    const out = [];
+    for (let raw of lines) {
+      const tr = raw.trim();
+      if (!tr) { out.push(''); continue; }
+      if (/^#{1,6}\s/.test(tr)) continue;
+      if (/^\*\*[^*\n]+\*\*\s*$/.test(tr)) continue;
+      if (/^\[\s*\d+\s*[:.]?\s*\d*\s*[-–—]\s*\d+.*\]\s*[A-ZÀ-Ý ]*\s*$/.test(tr)) continue;
+      if (/^>\s*$/.test(tr)) continue;
+      let c = raw
+        .replace(/^\s*>\s?/, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*\s][^*]*?)\*/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+      if (c.trim()) out.push(c);
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  }
+  // Backup handlers : NE FONT RIEN si app.js a deja repondu (sentinel sur le DOM)
+  // - tag-quick : insert si la valeur du textarea n'a pas change
+  document.querySelectorAll('.tag-quick[data-insert]').forEach(b => {
+    b.addEventListener('click', () => {
+      const txt = document.getElementById('text-input');
+      if (!txt) return;
+      const beforeVal = txt.value;
+      const beforeLen = beforeVal.length;
+      setTimeout(() => {
+        // Si app.js a deja insere, length augmente
+        if (txt.value.length > beforeLen) return;
+        insertAtCursor(txt, b.dataset.insert);
+      }, 30);
+    });
+  });
+  // - clean : seulement si app.js n'a pas modifie le texte
+  document.getElementById('clean-script')?.addEventListener('click', () => {
+    const txt = document.getElementById('text-input');
+    if (!txt) return;
+    const beforeVal = txt.value;
+    setTimeout(() => {
+      if (txt.value !== beforeVal) return; // app.js a fait le job
+      const cleaned = cleanMarkdown(beforeVal);
+      if (cleaned !== beforeVal) {
+        txt.value = cleaned;
+        saveCurrentScript();
+        showToast('Nettoyé : -' + (beforeVal.length - cleaned.length) + ' caractères');
+      } else {
+        showToast('Déjà propre ✓');
+      }
+    }, 30);
+  });
+  // - save : seulement si pas de feedback "Enregistré"
+  document.getElementById('save-script')?.addEventListener('click', () => {
+    const btn = document.getElementById('save-script');
+    if (!btn) return;
+    const beforeHTML = btn.innerHTML;
+    setTimeout(() => {
+      if (btn.innerHTML !== beforeHTML) return; // app.js a deja change le label
+      saveCurrentScript();
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✓ Enregistré';
+      btn.classList.add('confirm');
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('confirm'); }, 1400);
+    }, 30);
+  });
+  // Backup : back-editor button (prompter -> editor)
+  document.getElementById('back-editor')?.addEventListener('click', () => {
+    setTimeout(() => {
+      const promp = document.getElementById('view-prompter');
+      const editor = document.getElementById('view-editor');
+      if (promp && !promp.classList.contains('active')) return; // app.js handled
+      promp?.classList.remove('active');
+      editor?.classList.add('active');
+    }, 80);
+  });
+  // Backup : edit-btn (prompter inner -> editor)
+  document.getElementById('edit-btn')?.addEventListener('click', () => {
+    setTimeout(() => {
+      const editor = document.getElementById('view-editor');
+      if (editor?.classList.contains('active')) return;
+      document.getElementById('view-prompter')?.classList.remove('active');
+      editor?.classList.add('active');
+    }, 80);
+  });
+  // Backup : settings-btn (prompter inner) -> open modal
+  document.getElementById('settings-btn')?.addEventListener('click', () => {
+    setTimeout(() => {
+      const modal = document.getElementById('settings-modal');
+      if (modal && !modal.hidden) return;
+      openModal();
+    }, 80);
+  });
+  // Backup : back-home (editor -> scripts tab)
+  document.getElementById('back-home')?.addEventListener('click', () => {
+    setTimeout(() => {
+      const editor = document.getElementById('view-editor');
+      if (editor && !editor.classList.contains('active')) return;
+      saveCurrentScript();
+      editor?.classList.remove('active');
+      setActiveTab('scripts');
+    }, 80);
+  });
+  // Backup : delete-script
+  document.getElementById('delete-script')?.addEventListener('click', () => {
+    setTimeout(() => {
+      const editor = document.getElementById('view-editor');
+      if (editor && !editor.classList.contains('active')) return;
+      // app.js dejà traité (confirm + suppression). Si pas, fallback minimal:
+      if (!confirm('Supprimer ce script ?')) return;
+      try {
+        const list = JSON.parse(localStorage.getItem('nova:mobile:scripts') || '[]');
+        const id = getCurScriptId();
+        const filtered = list.filter(x => x.id !== id);
+        localStorage.setItem('nova:mobile:scripts', JSON.stringify(filtered));
+      } catch {}
+      editor?.classList.remove('active');
+      setActiveTab('scripts');
+    }, 100);
+  });
+
+  // Commencer button : open prompter (uses app.js's openPrompter if available, else fallback)
+  document.getElementById('open-prompter')?.addEventListener('click', () => {
+    saveCurrentScript();
+    const txt = document.getElementById('text-input');
+    if (!txt || !txt.value.trim()) {
+      showToast('Script vide');
+      return;
+    }
+    setTimeout(() => {
+      // If app.js openPrompter ran, view-prompter is now active
+      const promp = document.getElementById('view-prompter');
+      if (promp && promp.classList.contains('active')) return;
+      // Otherwise: backup — show prompter view with text rendered
+      document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-editor')?.classList.remove('active');
+      const ptext = document.getElementById('prompter-text');
+      if (ptext) ptext.textContent = txt.value;
+      document.getElementById('view-prompter')?.classList.add('active');
+    }, 80);
+  });
 
   // ============= INIT =============
   function init() {

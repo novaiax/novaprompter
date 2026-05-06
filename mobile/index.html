@@ -32,9 +32,9 @@
           }
         }
       } catch (e) {}
-      // ONE-TIME cache bust pour le redesign mobile (v6)
+      // ONE-TIME cache bust pour le redesign mobile (v8)
       try {
-        var BUST = 'tpr:cachebust:v6';
+        var BUST = 'tpr:cachebust:v8';
         if (!localStorage.getItem(BUST)) {
           localStorage.setItem(BUST, '1');
           if ('serviceWorker' in navigator) {
@@ -250,7 +250,7 @@
       <button class="tag-quick" data-insert="[pause]">⏸ pause</button>
       <button class="tag-quick" data-insert="[regard]">👀 regard</button>
     </div>
-    <button id="open-prompter" class="cta">▶ Lire</button>
+    <button id="open-prompter" class="cta">▶ Commencer</button>
   </main>
 
   <!-- ============ PROMPTER (vertical/horizontal) ============ -->
