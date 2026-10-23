@@ -10,7 +10,7 @@
   "author": "Yann",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.0.0"
+    "electron": "45.0.0"
   },
   "dependencies": {
     "obs-websocket-js": "^5.0.6"

@@ -6,9 +6,10 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const { Pool } = require('pg');
+const { getJwtSecret, getDatabaseTls } = require('./security-config');
 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'novaprompter-dev-secret-CHANGE-IN-PROD';
+const JWT_SECRET = getJwtSecret();
 // On accepte plusieurs noms de var standard Railway/Heroku/Render
 const DATABASE_URL = process.env.DATABASE_URL
   || process.env.DATABASE_PUBLIC_URL
@@ -25,9 +26,7 @@ if (!DATABASE_URL) {
 }
 
 // SSL en prod (Railway), pas en local
-const ssl = process.env.NODE_ENV === 'production' || /railway|render|heroku/i.test(DATABASE_URL || '')
-  ? { rejectUnauthorized: false }
-  : false;
+const ssl = getDatabaseTls(DATABASE_URL);
 
 const pool = new Pool({ connectionString: DATABASE_URL, ssl, max: 10 });
 
